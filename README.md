@@ -1,6 +1,6 @@
 # CodeAgentX
 
-> 多智能体代码审查与重构助手：输入本地目录或 GitHub 仓库，输出一份带文件、行号与修复建议的 Markdown 审查报告。
+> 多智能体代码审查与重构助手：给它一个本地目录或 GitHub 仓库，输出一份带文件、行号与修复建议的 Markdown 审查报告。
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -27,85 +27,176 @@ CodeAgentX 面向 **Python 项目**的代码审查：把静态分析、语义检
 
 ## 🚀 快速开始
 
-### 1. 安装
+先选一条路，两条都能完整使用：
 
-```bash
-git clone https://github.com/xuanbaoouo-beep/CodeAgentX.git && cd CodeAgentX
+| 你想要什么 | 走哪条路 | 需要准备 |
+| --- | --- | --- |
+| 只想拿它审自己的代码，不想在本地放源码 | **路径 A：不克隆**（Docker 或 pip） | Docker，或 Python 3.10+ |
+| 想跑示例、看实现、改代码、跑测试 | **路径 B：下载到本地** | Python 3.10+ |
 
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
+两条路都只需要一样东西：**一个 OpenAI 兼容接口的模型 Key**（下文用 `sk-xxx` 占位）。
+
+### 路径 A：不克隆到本地
+
+#### A-1 用 Docker（推荐，连 Python 都不用装）
+
+```powershell
+# ① Docker 自己从 GitHub 取代码并构建镜像 —— 你本地不需要有源码
+docker build -t codeagentx:latest https://github.com/xuanbaoouo-beep/CodeAgentX.git
+
+# ② 准备密钥文件（这不是克隆仓库，就 3 行）。新建 .env 写入：
+#    LLM_API_KEY=sk-xxx
+#    LLM_BASE_URL=https://api-inference.modelscope.cn/v1/
+#    LLM_MODEL_ID=Qwen/Qwen2.5-72B-Instruct
+
+# ③ 起服务（前台运行，日志刷在这个终端，Ctrl+C 停止）
+docker run --rm -p 127.0.0.1:8000:8000 --env-file .env codeagentx:latest
+```
+
+> 这个服务是纯接口、**没有首页**：浏览器打开 `http://127.0.0.1:8000/` 看到 `Not Found` 是正常的，
+> 要看接口文档请开 <http://127.0.0.1:8000/docs>。想要网页界面见下面「想要网页界面」。
+
+服务起来后，另开一个终端提交审查任务。
+
+提交只是**排队**（一次审查要跑几分钟，不占着 HTTP 连接），拿到 `job_id` 后轮询取结果：
+
+```powershell
+# 镜像里自带演示项目 /app/data/sample_repo，可直接用它试（前提是第 ② 步的 Key 已配好）
+curl.exe -X POST http://127.0.0.1:8000/review -H "Content-Type: application/json" -d '{\"target\":\"/app/data/sample_repo\"}'
+# → {"job_id":"xxxx","status":"queued","target":"/app/data/sample_repo",...}
+
+# 轮询：queued → running → done / failed；done 时多出 result 字段（含 markdown 报告与结构化问题）
+curl.exe http://127.0.0.1:8000/review/xxxx
+```
+
+没配 Key 时 `POST /review` 会返回 503 并说明原因（接口不接受调用方传 Key，密钥只在服务端配置）。
+
+**审自己电脑上的代码**：把代码目录挂进容器，`target` 写容器内的路径。
+
+```powershell
+docker run --rm -p 127.0.0.1:8000:8000 --env-file .env -v ${PWD}/my-project:/work codeagentx:latest
+# 提交时 target 填 /work（或 /work/app/api.py 只审一个文件）
+```
+
+**想要网页界面**（界面与接口二选一，换 CMD 即可）：
+
+```powershell
+docker run --rm -p 127.0.0.1:8501:8501 --env-file .env codeagentx:latest `
+  streamlit run src/codeagentx/ui/streamlit_app.py --server.address=0.0.0.0 --server.port=8501
+# 打开 http://127.0.0.1:8501
+```
+
+#### A-2 用 pip 装命令行（不想装 Docker，但想要 `codeagentx` 命令）
+
+```powershell
+pip install "https://github.com/xuanbaoouo-beep/CodeAgentX/archive/refs/heads/main.zip"
+```
+
+这种安装方式下程序**不读当前目录的 `.env`**（配置路径按包安装位置解析），所以用环境变量传密钥：
+
+```powershell
+# Windows PowerShell
+$env:LLM_API_KEY="sk-xxx"
+$env:LLM_BASE_URL="https://api-inference.modelscope.cn/v1/"
+$env:LLM_MODEL_ID="Qwen/Qwen2.5-72B-Instruct"
+
 # Linux / macOS
-source .venv/bin/activate
+export LLM_API_KEY=sk-xxx
+export LLM_BASE_URL=https://api-inference.modelscope.cn/v1/
+export LLM_MODEL_ID=Qwen/Qwen2.5-72B-Instruct
 
+# 然后就能直接审任意目录
+codeagentx review C:\path\to\your-project --out report.md
+```
+
+> 这种方式装出来的只有命令行工具，没有仓库里的 `examples/`、`data/` 与测试。要看示例或改代码，走路径 B。
+
+### 路径 B：下载到本地
+
+```powershell
+# ① 取代码：有 git 用 clone；没有 git 就在 GitHub 页面点 Code → Download ZIP 解压
+git clone https://github.com/xuanbaoouo-beep/CodeAgentX.git
+cd CodeAgentX
+
+# ② 建虚拟环境并安装
+python -m venv .venv
+.\.venv\Scripts\activate                # Linux / macOS：source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
+
+# ③ 配置：从模板复制，填好 LLM 三项（其余可留空）
+copy .env.example .env                  # Linux / macOS：cp .env.example .env
+
+# ④ 跑一次（先拿自带的演示项目试）
+codeagentx review data\sample_repo --out review.md
 ```
 
-只跑 HTTP API / Web UI：`pip install -e ".[serve]"`；静态分析工具链在 `.[tools]` 里。
+`--out review.md` 把报告写进文件（不写就打印到终端）。**接着可以做的：**
 
-### 2. 配置
-
-```bash
-# Windows
-copy .env.example .env
-# Linux / macOS
-cp .env.example .env
+```powershell
+streamlit run src/codeagentx/ui/streamlit_app.py    # 网页界面：本地路径 / owner/repo / 上传 zip
+python -m uvicorn codeagentx.api.main:app --port 8000 # 当接口服务跑
+docker compose up --build                            # 一键起接口(8000) + 界面(8501)
+python examples\review_workflow.py --mock data\sample_repo   # 离线示例，不需要 Key
+pytest                                               # 跑测试
 ```
 
-`.env` 里**至少填 LLM 三项**（任意 OpenAI 兼容接口）：
+### 配置清单（两条路通用）
 
-```env
-LLM_MODEL_ID=Qwen/Qwen2.5-72B-Instruct
-LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://api-inference.modelscope.cn/v1/
-```
-
-以下三项是可选增强，都可以不配，不配时按离线方式降级运行（日志里会写明）：
-
-| 变量 | 作用 | 不配时 |
+| 变量 | 是否必需 | 说明 |
 | --- | --- | --- |
-| `EMBEDDING_*` | 让检索具备语义能力 | 用离线 `HashEmbedder` + BM25 词法，仍能靠标识符命中 |
-| `VECTOR_BACKEND` / `QDRANT_*` | 索引落盘、跨进程复用 | `memory`：进程内向量库，零依赖 |
-| `GITHUB_TOKEN` | 读私有仓库、更高 API 额度 | 公开仓库匿名可读（60 次/小时） |
+| `LLM_API_KEY` | ✅ | 模型服务的 API Key |
+| `LLM_BASE_URL` | ✅ | OpenAI 兼容端点，如 `https://api-inference.modelscope.cn/v1/` |
+| `LLM_MODEL_ID` | ✅ | 模型名，如 `deepseek-flash` |
+| `EMBEDDING_*` | 可选 | 不配则检索退化为离线词法匹配（可用，但没有语义能力） |
+| `VECTOR_BACKEND` / `QDRANT_*` | 可选 | 不配则用进程内向量库；配了可让索引落盘、跨进程复用 |
+| `GITHUB_TOKEN` | 可选 | 读私有仓库或提高额度；公开仓库匿名可读（60 次/小时） |
 
-Embedding 换服务只改 `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL_ID` / `EMBEDDING_DIM` 三项即可
-（SiliconFlow 的 `BAAI/bge-m3`、本地 Ollama 的 `nomic-embed-text` 都验证过）；
-**维度变了要清空旧集合并重建索引**。完整参数说明见 [.env.example](.env.example)。
+`.env` 放哪：**路径 B 放在仓库根目录**；路径 A-1 用 `--env-file` 传给容器；路径 A-2 用环境变量。
+全部变量与默认值见 [.env.example](.env.example)。
 
-### 3. 运行
+## 📖 CLI 用法
 
 ```powershell
-# CLI：本地目录 / 单个文件 / GitHub 仓库（自动下载到临时工作区，审完删除）
-codeagentx review ./your-project
-codeagentx review ./your-project/app/service.py
-codeagentx review owner/repo
-
-# HTTP API（默认只绑 127.0.0.1）
-python -m uvicorn codeagentx.api.main:app --port 8000
-
-# Web UI（本地路径 / owner/repo / 上传 zip）
-streamlit run src/codeagentx/ui/streamlit_app.py
-
-# Docker：一键起 API(8000) + UI(8501)
-docker compose up --build
+codeagentx review <目标> [参数]
 ```
 
-CLI 常用参数：`--out report.md` 落盘报告、`--enable-test` 跑目标仓库自带用例、
-`--enable-refactor` 加重构规划、`--reflect` 换 Reflection 范式、`--state s.json --resume` 断点续跑。
-退出码：`0` 全部阶段成功 / `1` 有阶段失败或报告降级 / `2` 目标或配置有误（此时不会调用模型）。
+目标支持三种写法：
 
-### 4. 更多示例脚本
+| 目标 | 例子 | 说明 |
+| --- | --- | --- |
+| 本地目录 | `codeagentx review ./my-project` | 审查整个目录 |
+| 单个文件 | `codeagentx review ./my-project/app/api.py` | 只审这一个文件，同目录其他文件仅作上下文 |
+| GitHub 仓库 | `codeagentx review owner/repo`、`owner/repo@ref`、仓库 URL | 自动下载到临时工作区，审完删除 |
 
-仓库自带可离线跑通的示例（`examples/`）：
+常用参数：
 
-```powershell
-python examples/simple_agent.py --mock "你好"                  # 最小对话 Agent
-python examples/rag_search.py "用户登录逻辑在哪"                # 代码检索
-python examples/review_code.py --mock data/sample_repo         # 三种单 Agent 范式
-python examples/review_workflow.py --mock data/sample_repo     # 多 Agent 流水线
-python examples/github_context.py                              # 读 GitHub 仓库 → 生成上下文
-python examples/evaluate_sample_repo.py --judge --repeat 3     # 在标注集上评估（需 API Key）
+| 参数 | 作用 |
+| --- | --- |
+| `--out report.md` | 把 Markdown 报告写入文件 |
+| `--enable-test` | 跑目标仓库自带的测试用例（默认关：会执行别人的代码，慎用） |
+| `--enable-refactor` | 增加重构规划阶段（只出计划，不改代码） |
+| `--reflect` | 主审查角色改用 Reflection 范式（默认 ReAct） |
+| `--state s.json --resume` | 状态落盘 / 断点续跑，不重复跑已完成阶段 |
+| `--keep-workdir` | 保留远端仓库下载下来的临时工作区，便于排查 |
+| `--max-files` / `--max-mb` | 限制远端归档解压的文件数与体积 |
+
+退出码：`0` 全部阶段成功 / `1` 有阶段失败或报告被标记降级 / `2` 目标或配置有问题（此时不会调用模型）。
+
+实测（`pypa/sampleproject`，未配 `GITHUB_TOKEN`）：
+
+```text
+[远端] 已下载 pypa/sampleproject@main → C:\...\Temp\codeagentx-remote-ebvu2570（12 个文件 / 13 KB）
+[配置] 模型=deepseek-flash | 目标=pypa/sampleproject@main | 来源=GitHub | 测试阶段=关 | 重构规划=关 | 审查范式=react
+[阶段] pending 0 | running 0 | done 5 | failed 0 | skipped 2
+  plan     done     25.32s  4 条子任务
+  retrieve done      4.62s  11 条证据 / 4 次查询
+  review   done     38.38s  5 条问题
+  security done     28.35s  2 条问题
+  test     skipped   0.00s  未启用（enable_test=False）
+  refactor skipped   0.00s  未启用（enable_refactor=False）
+  report   done      0.00s  6 条问题
+[用量] LLM 调用 15 次 | token 92076 | 耗时 96.683s | 整体成功=True
 ```
 
 ## 📄 输出示例
@@ -122,7 +213,7 @@ python examples/evaluate_sample_repo.py --judge --repeat 3     # 在标注集上
     建议：改为从环境变量读取：SECRET_KEY = os.environ["SECRET_KEY"]，并在启动时校验其存在；同时轮换已泄露的密钥。
 ```
 
-七阶段流水线执行后同时给出各阶段状态与耗时（`failed` 与 `skipped` 分开统计）：
+七个阶段每一步都留下状态与耗时（`failed` 与 `skipped` 分开统计）：
 
 ```text
 [阶段状态] pending 0 | running 0 | done 7 | failed 0 | skipped 0
@@ -136,7 +227,7 @@ python examples/evaluate_sample_repo.py --judge --repeat 3     # 在标注集上
 [结论] 问题 5 条（high 4 / medium 1 / low 0） | 降级=False | 整体成功=True
 ```
 
-也可以在代码里直接调用：
+也可以在代码里直接调用（模板见 [`examples/review_workflow.py`](examples/review_workflow.py)）：
 
 ```python
 from codeagentx.orchestrator import CodeReviewWorkflow
