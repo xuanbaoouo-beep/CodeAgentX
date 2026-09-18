@@ -1,0 +1,197 @@
+{
+  "dataset": "task_queue",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/task_queue/target",
+  "valid": true,
+  "seconds": 18.376,
+  "usage": {
+    "calls": 7,
+    "failed_calls": 0,
+    "prompt_tokens": 25072,
+    "completion_tokens": 3379,
+    "total_tokens": 28451,
+    "latency": 17.342
+  },
+  "cost": {
+    "total_tokens": 28451,
+    "tokens_per_finding": 4064.4
+  },
+  "flags": {
+    "forced_convergence": true
+  },
+  "judge": {},
+  "evaluation": {
+    "dataset": "task_queue",
+    "target": "data/evaluation/task_queue/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 7,
+      "true_positives": 5,
+      "false_positives": 2,
+      "false_negatives": 1,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.7143,
+      "recall": 0.8333,
+      "f1": 0.7692,
+      "false_positive_rate": 0.2857,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "pickle-untrusted-payload": "pickle.loads 反序列化队列中的外部数据，可致 RCE",
+      "no-task-timeout": "日志原样打印整个任务 payload，泄露口令/token",
+      "broad-except-swallow": "except Exception 只记日志，任务静默丢失且状态卡在 running",
+      "unbounded-retry": "重试无次数上限且无退避，失败任务打满 CPU",
+      "task-state-race": "任务状态读—改—写未加锁，多 worker 并发丢失更新"
+    },
+    "missed": [
+      "sensitive-payload-logging"
+    ],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "pickle.loads 反序列化队列中的外部数据，可致 RCE",
+        "file": "worker/queue.py",
+        "line": 29,
+        "defect_id": "pickle-untrusted-payload",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "日志原样打印整个任务 payload，泄露口令/token",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "no-task-timeout",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "except Exception 只记日志，任务静默丢失且状态卡在 running",
+        "file": "worker/runner.py",
+        "line": 46,
+        "defect_id": "broad-except-swallow",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "重试无次数上限且无退避，失败任务打满 CPU",
+        "file": "worker/retry.py",
+        "line": 21,
+        "defect_id": "unbounded-retry",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "任务状态读—改—写未加锁，多 worker 并发丢失更新",
+        "file": "worker/queue.py",
+        "line": 38,
+        "defect_id": "task-state-race",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "任务执行无超时，卡死任务永久占用 worker",
+        "file": "worker/runner.py",
+        "line": 31,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 6,
+        "title": "should_retry 恒为真且从未被调用，属误导性死代码",
+        "file": "worker/retry.py",
+        "line": 12,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "pickle.loads 反序列化队列中的外部数据，可致 RCE",
+      "description": "dequeue() 直接用 pickle.loads(raw) 还原任务对象，而队列元素可能来自其它进程、网络或上游生产者。pickle 反序列化会在构造对象时执行 __reduce__ / __setstate__ 等魔术方法，攻击者只需投递构造好的字节流即可在 worker 进程内执行任意代码，属于典型的不可信数据反序列化漏洞；触发条件是攻击者能向 _QUEUE 投递任意 bytes。",
+      "file": "worker/queue.py",
+      "line": 29,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用无代码执行能力的结构化格式（如 json）承载任务元数据，handler 用任务名字符串在本地注册表中查表（tasks.TASKS 已提供该模式），不要把可调用对象直接序列化。若必须兼容 pickle，则需加签名校验（如 HMAC）+ 白名单 Unpickler 并限制载荷来源。",
+      "evidence": "raw = _QUEUE.get()\nreturn pickle.loads(raw)  # worker/queue.py:28-29；enqueue 侧对应 _QUEUE.put(pickle.dumps(task)) 第 18 行",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "日志原样打印整个任务 payload，泄露口令/token",
+      "description": "log_task() 使用 logger.info(\"开始处理任务：%s\", task) 把整个任务字典写入日志，任务里常带 password、token、重置链接等敏感字段；日志一旦被落盘、被采集或被他方读取即等同于凭据泄露。触发条件是任意一次正常入队处理（run_once 中每次都会调用 log_task）。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "只记录可安全暴露的字段（如 task_id、handler 名），对 payload 做脱敏或只打印字段名/类型：logger.info(\"开始处理任务 id=%s handler=%s\", task.get(\"id\"), task.get(\"handler\"))；如需调试可加显式开关并只输出白名单字段。",
+      "evidence": "def log_task(task):\n    logger.info(\"开始处理任务：%s\", task)  # worker/runner.py:14-20；第 43 行 log_task(task) 无条件调用",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "except Exception 只记日志，任务静默丢失且状态卡在 running",
+      "description": "run_once() 捕获所有异常后只 warning 一行就正常返回 None，既不重新抛出也不调用 set_status(..., \"failed\")。后果：调用方无法感知失败（返回 None 与成功返回难以区分），且 execute() 已在异常前把状态置为 running，任务永远停留在 running，重试/补偿逻辑无法发现。触发条件是 handler 抛出任意异常。",
+      "file": "worker/runner.py",
+      "line": 46,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "在 except 分支中显式标记失败并向上传递：except Exception as exc: set_status(task[\"id\"], \"failed\"); logger.exception(\"任务执行失败 id=%s\", task[\"id\"]); raise（或返回结构化失败结果）。同时建议用 try/finally 或统一出口保证状态终态一定被写回。",
+      "evidence": "try:\n    return execute(task)\nexcept Exception as exc:\n    logger.warning(\"任务执行失败：%s\", exc)  # worker/runner.py:44-47，函数末尾无 return/raise；execute 第 29/32 行只写 running/done",
+      "confidence": 0.92,
+      "source": "react"
+    },
+    {
+      "title": "重试无次数上限且无退避，失败任务打满 CPU",
+      "description": "run_with_retry() 用 while True 包裹 handler(task)，except Exception 后直接 continue。没有最大尝试次数、没有退避/抖动，永久失败的任务会无限循环占用 worker 线程并持续冲击下游依赖；若 handler 失败很快，将形成紧凑死循环吃满 CPU，且该 worker 上后续任务永久不被处理。触发条件是 handler 抛异常且不可恢复。",
+      "file": "worker/retry.py",
+      "line": 21,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "引入最大重试次数与指数退避加抖动：for attempt in range(max_attempts): try: return handler(task) except Exception: if attempt == max_attempts-1: raise; time.sleep(min(base*2**attempt, cap) * (0.5+random.random()))。次数与退避参数放入 settings.py。",
+      "evidence": "while True:\n    try:\n        return handler(task)\n    except Exception:\n        continue  # worker/retry.py:21-25",
+      "confidence": 0.93,
+      "source": "react"
+    },
+    {
+      "title": "任务状态读—改—写未加锁，多 worker 并发丢失更新",
+      "description": "set_status() 先 _STATUS.get(task_id, \"pending\") 再 _STATUS[task_id] = status，三步之间没有锁。settings.WORKER_CONCURRENCY = 4 表明存在多 worker 并发，两个 worker 对同一 task_id 并发调用时返回的 old 值可能都是同一快照，导致状态更新互相覆盖、返回值不可信，状态机（pending/running/done/failed）出现不一致。",
+      "file": "worker/queue.py",
+      "line": 38,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "为状态表加线程锁保护读改写，例如模块级 _LOCK = threading.Lock() 并在 set_status 中 with _LOCK: old = _STATUS.get(...); _STATUS[task_id] = status; return old；多人协作场景建议改用带原子 CAS 的外部存储（Redis/DB）。",
+      "evidence": "current = _STATUS.get(task_id, \"pending\")\n_STATUS[task_id] = status\nreturn current  # worker/queue.py:38-40；_STATUS 为普通 dict（第 13 行），无任何 Lock",
+      "confidence": 0.85,
+      "source": "react"
+    },
+    {
+      "title": "任务执行无超时，卡死任务永久占用 worker",
+      "description": "execute() 直接同步调用 run_with_retry(task, handler)，没有任何超时或看门狗机制。若 handler 阻塞（网络 hang、死锁、死循环），该 worker 线程被永久占用，时间预算与并发额度耗尽，队列后续任务全部得不到处理。",
+      "file": "worker/runner.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "为任务执行加超时：把 handler 放入线程/进程池并用 concurrent.futures 的 future.result(timeout=...) 或 signal.alarm（仅主线程）限制；超时后按失败处理并标记 failed，同时记录超时指标。超时阈值放 settings.py。",
+      "evidence": "result = run_with_retry(task, handler)\nset_status(task[\"id\"], \"done\")  # worker/runner.py:31-32，无 timeout / join / 未来对象等待",
+      "confidence": 0.8,
+      "source": "react"
+    },
+    {
+      "title": "should_retry 恒为真且从未被调用，属误导性死代码",
+      "description": "should_retry(attempts) 返回 attempts >= 0，对任何非负 attempts 恒为 True，等于没有任何重试上限语义；同时全仓库没有任何调用点（真正重试逻辑在 run_with_retry 内），保留该函数会误导调用者以为存在重试判定，属于易腐化的死代码。",
+      "file": "worker/retry.py",
+      "line": 12,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "让 should_retry 承担真实语义（如 return attempts < settings.MAX_RETRIES）并让 run_with_retry 复用它；若确实不用则删除该函数，避免双重实现漂移。",
+      "evidence": "def should_retry(attempts):\n    return attempts >= 0  # worker/retry.py:7-12；仓库中仅在 retry.py 内定义，未见调用者",
+      "confidence": 0.8,
+      "source": "react"
+    }
+  ]
+}

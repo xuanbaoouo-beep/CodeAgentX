@@ -1,0 +1,32 @@
+{
+  "id": 642180031,
+  "node_id": "R_kgDOJkQ1zw",
+  "name": "payments-api",
+  "full_name": "acme/payments-api",
+  "private": false,
+  "owner": {
+    "login": "acme",
+    "id": 991100,
+    "node_id": "O_kgDOAAB8vA",
+    "type": "Organization",
+    "html_url": "https://github.com/acme"
+  },
+  "html_url": "https://github.com/acme/payments-api",
+  "description": "Minimal payments service kept as the CodeAgentX evaluation fixture.",
+  "fork": false,
+  "url": "https://api.github.com/repos/acme/payments-api",
+  "created_at": "2023-05-11T08:12:44Z",
+  "updated_at": "2024-11-02T06:31:09Z",
+  "pushed_at": "2024-11-02T06:31:09Z",
+  "git_url": "git://github.com/acme/payments-api.git",
+  "default_branch": "main",
+  "language": "Python",
+  "size": 412,
+  "stargazers_count": 128,
+  "watchers_count": 128,
+  "forks_count": 17,
+  "open_issues_count": 6,
+  "archived": false,
+  "disabled": false,
+  "topics": ["payments", "fastapi", "evaluation-fixture"]
+}

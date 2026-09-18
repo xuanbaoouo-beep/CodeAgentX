@@ -1,0 +1,213 @@
+{
+  "dataset": "url_shortener",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/url_shortener/target",
+  "valid": true,
+  "seconds": 20.088,
+  "usage": {
+    "calls": 5,
+    "failed_calls": 0,
+    "prompt_tokens": 24928,
+    "completion_tokens": 4337,
+    "total_tokens": 29265,
+    "latency": 17.872
+  },
+  "cost": {
+    "total_tokens": 29265,
+    "tokens_per_finding": 3658.1
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "url_shortener",
+    "target": "data/evaluation/url_shortener/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 8,
+      "true_positives": 5,
+      "false_positives": 3,
+      "false_negatives": 0,
+      "labeled_defects": 5
+    },
+    "metrics": {
+      "precision": 0.625,
+      "recall": 1.0,
+      "f1": 0.7692,
+      "false_positive_rate": 0.375,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "missing-scheme-validation": "URL 校验只判非空，危险协议可绕过",
+      "predictable-short-code": "短码由自增计数器生成，可被枚举遍历",
+      "open-redirect": "跳转未校验目标白名单，存在开放重定向",
+      "ssrf-preview-fetch": "链接预览按用户 URL 抓取，存在 SSRF",
+      "unauth-stats-endpoint": "统计接口无任何鉴权，全站数据可被任意读取"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "URL 校验只判非空，危险协议可绕过",
+        "file": "app/validators.py",
+        "line": 17,
+        "defect_id": "missing-scheme-validation",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "短码由自增计数器生成，可被枚举遍历",
+        "file": "app/shortener.py",
+        "line": 35,
+        "defect_id": "predictable-short-code",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "跳转未校验目标白名单，存在开放重定向",
+        "file": "app/api.py",
+        "line": 28,
+        "defect_id": "open-redirect",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "链接预览按用户 URL 抓取，存在 SSRF",
+        "file": "app/preview.py",
+        "line": 31,
+        "defect_id": "ssrf-preview-fetch",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "统计接口无任何鉴权，全站数据可被任意读取",
+        "file": "app/api.py",
+        "line": 31,
+        "defect_id": "unauth-stats-endpoint",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "短码不存在时仍返回 302 且 location 为 None",
+        "file": "app/api.py",
+        "line": 26,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 6,
+        "title": "全局计数器自增非线程安全，可能生成重复短码",
+        "file": "app/shortener.py",
+        "line": 34,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 7,
+        "title": "normalize() 已定义但从未调用，URL 未规范化入库",
+        "file": "app/api.py",
+        "line": 14,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "URL 校验只判非空，危险协议可绕过",
+      "description": "is_valid_url 只判断 url 是否为非空字符串，完全未使用已声明的 ALLOWED_SCHEMES 白名单。因此 javascript:alert(1)、file:///etc/passwd、data:text/html,...  等危险 scheme 都能通过校验并被 shorten() 存入存储，随后 redirect() 会把这些值直接放进 302 location，可能被用于 XSS 或本地文件跳转钓鱼。空字符串以外的纯空白串（如 \"   \"）也会通过校验。",
+      "file": "app/validators.py",
+      "line": 17,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "用白名单严格校验协议并强制 http/https，例如：\n\nfrom urllib.parse import urlparse\n\ndef is_valid_url(url):\n    if not isinstance(url, str) or not url.strip():\n        return False\n    parsed = urlparse(url.strip())\n    return parsed.scheme in (\"http\", \"https\") and bool(parsed.netloc)",
+      "evidence": "def is_valid_url(url):\n    \"\"\"...\"\"\"\n    return isinstance(url, str) and len(url) > 0  # 未使用 ALLOWED_SCHEMES\ndef normalize(url):\n    \"\"\"去掉首尾空白，返回规范化后的 URL。\"\"\"\n    return url.strip()",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "短码由自增计数器生成，可被枚举遍历",
+      "description": "next_code() 直接用全局变量 _counter 的当前值转 36 进制作为短码（0,1,2,...,z...），短码完全可预测。任何人按顺序遍历 '0'、'1'、'2' 即可枚举并访问他人创建的短链，导致链接隐私泄露。",
+      "file": "app/shortener.py",
+      "line": 35,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用密码学安全的随机短码，并检测碰撞后重试，例如：\n\nimport secrets\n\ndef next_code():\n    while True:\n        code = ''.join(secrets.choice(ALPHABET) for _ in range(7))\n        if store.get(code) is None:\n            return code",
+      "evidence": "def next_code():\n    global _counter\n    code = _to_base36(_counter)\n    _counter += 1\n    return code",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "跳转未校验目标白名单，存在开放重定向",
+      "description": "redirect() 直接返回 {\"status\": 302, \"location\": target}，未对 target 做任何域名/协议白名单校验。结合上面 is_valid_url 的缺陷，攻击者可创建指向任意站点甚至 javascript:/file: 的短链，把本站当作钓鱼跳板（开放重定向），也可放大 XSS 风险。",
+      "file": "app/api.py",
+      "line": 28,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在跳转前校验目标：非 http/https 一律拒绝；如需域名白名单则比对解析出的 host。例如：\n\ntarget = store.get(code)\nif not target or not is_valid_url(target):\n    return {\"status\": 404, \"message\": \"短链不存在\"}\nreturn {\"status\": 302, \"location\": target}",
+      "evidence": "target = store.get(code)\nstore.record_hit(code)\nreturn {\"status\": 302, \"location\": target}",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "链接预览按用户 URL 抓取，存在 SSRF",
+      "description": "fetch_title() 直接把用户传入的 url 交给 _http_get()（等价于服务端发起 HTTP 请求），既未校验协议，也未拦截 127.0.0.1、169.254.169.254、10/172.16/192.168 等内网与云元数据地址。攻击者可借此探测内网服务、读取云实例元数据（SSRF）。",
+      "file": "app/preview.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "解析目标主机并拒绝回环/私网/链路本地地址与非常规端口，仅允许 http/https；同时限制重定向与响应体大小、设置超时。例如：\n\nimport ipaddress, socket\nfrom urllib.parse import urlparse\n\ndef _is_safe_url(url):\n    p = urlparse(url)\n    if p.scheme not in (\"http\", \"https\") or not p.hostname:\n        return False\n    ip = ipaddress.ip_address(socket.gethostbyname(p.hostname))\n    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved)",
+      "evidence": "def fetch_title(url):\n    \"\"\"...\"\"\"\n    html = _http_get(url)\n    return _extract_title(html)\n\ndef preview(request):\n    return {\"status\": 200, \"title\": fetch_title(request.get(\"url\", \"\"))}",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "统计接口无任何鉴权，全站数据可被任意读取",
+      "description": "stats(request) 未做登录态/API key 校验，任意调用者都能拿到全站短链数量与累计点击数，造成业务数据泄露，也便于攻击者配合短码枚举确认站点规模。",
+      "file": "app/api.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在 stats 中校验调用方身份（登录态或 API key），未通过返回 401/403，例如：\n\nif not _authorized(request):\n    return {\"status\": 403, \"message\": \"无权限\"}\nreturn {\"links\": len(store.all_links()), \"hits\": store.total_hits()}",
+      "evidence": "def stats(request):\n    \"\"\"...\"\"\"\n    return {\n        \"links\": len(store.all_links()),\n        \"hits\": store.total_hits(),\n    }",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "短码不存在时仍返回 302 且 location 为 None",
+      "description": "store.get(code) 在短码不存在时返回 None，但 redirect() 未做判空，仍调用 record_hit 并返回 {\"status\": 302, \"location\": None}。这会向客户端发出无效的 302（location 为 null），并把不存在的短码写入点击统计（_HITS[code]=1），污染统计数据。",
+      "file": "app/api.py",
+      "line": 26,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "先判空再记录与跳转：\n\ntarget = store.get(code)\nif target is None:\n    return {\"status\": 404, \"message\": \"短链不存在\"}\nstore.record_hit(code)\nreturn {\"status\": 302, \"location\": target}",
+      "evidence": "def redirect(code):\n    \"\"\"...\"\"\"\n    target = store.get(code)\n    store.record_hit(code)\n    return {\"status\": 302, \"location\": target}",
+      "confidence": 0.85,
+      "source": "react"
+    },
+    {
+      "title": "全局计数器自增非线程安全，可能生成重复短码",
+      "description": "next_code() 分两步执行 code = _to_base36(_counter) 与 _counter += 1，在多线程/并发请求下不是原子操作，两个并发调用可能读到同一 _counter 值并返回相同短码。由于 store.save() 以短码为键，后写入的会覆盖先写入的目标 URL，造成链接丢失/错乱。",
+      "file": "app/shortener.py",
+      "line": 34,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "用锁保护计数器，或（结合前面的建议）改用 secrets 随机短码并在保存前检测碰撞。若保留计数器，可用 itertools.count 配合锁：\n\nimport threading\n_lock = threading.Lock()\n_count = itertools.count()\n\ndef next_code():\n    with _lock:\n        return _to_base36(next(_count))",
+      "evidence": "def next_code():\n    global _counter\n    code = _to_base36(_counter)\n    _counter += 1\n    return code",
+      "confidence": 0.6,
+      "source": "react"
+    },
+    {
+      "title": "normalize() 已定义但从未调用，URL 未规范化入库",
+      "description": "validators.normalize() 用于去掉 URL 首尾空白，但 create_link() 直接使用 request.get(\"url\", \"\") 原始值做校验与存储，normalize 在整个仓库中没有任何调用方。结果是 ' http://a.com ' 这类带空白的输入会原样入库，跳转时产生非法 location，同一条链接也会因空白差异被当作不同 URL 重复创建。",
+      "file": "app/api.py",
+      "line": 14,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "在校验与存储前先规范化：\n\nurl = normalize(request.get(\"url\", \"\"))\nif not is_valid_url(url):\n    return {\"status\": 400, \"message\": \"URL 非法\"}\nreturn {\"status\": 200, \"code\": shorten(url)}",
+      "evidence": "def create_link(request):\n    url = request.get(\"url\", \"\")\n    if not is_valid_url(url):\n        return {\"status\": 400, \"message\": \"URL 非法\"}\n    return {\"status\": 200, \"code\": shorten(url)}\n# validators.py 中：\ndef normalize(url):\n    return url.strip()  # 全仓库无调用方",
+      "confidence": 0.8,
+      "source": "react"
+    }
+  ]
+}

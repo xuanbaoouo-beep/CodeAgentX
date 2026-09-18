@@ -1,0 +1,18 @@
+{
+  "name": "auth.py",
+  "path": "src/payments/auth.py",
+  "sha": "881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c",
+  "size": 202,
+  "url": "https://api.github.com/repos/acme/payments-api/contents/src/payments/auth.py?ref=main",
+  "html_url": "https://github.com/acme/payments-api/blob/main/src/payments/auth.py",
+  "git_url": "https://api.github.com/repos/acme/payments-api/git/blobs/881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c",
+  "download_url": "https://raw.githubusercontent.com/acme/payments-api/main/src/payments/auth.py",
+  "type": "file",
+  "encoding": "base64",
+  "content": "aW1wb3J0IGhtYWMKaW1wb3J0IGhhc2hsaWIKClNFQ1JFVCA9IGInJwoKCmRlZiB2ZXJpZnlfdG9rZW4odG9rZW46IHN0cikgLT4gYm9vbDoKICAgIGRpZ2VzdCA9IGhtYWMubmV3KFNFQ1JFVCwgdG9rZW4uZW5jb2RlKCksIGhhc2hsaWIuc2hhMjU2KS5oZXhkaWdlc3QoKQogICAgcmV0dXJuIGhtYWMuY29tcGFyZV9kaWdlc3QoZGlnZXN0LCBkaWdlc3QpCg==",
+  "_links": {
+    "self": "https://api.github.com/repos/acme/payments-api/contents/src/payments/auth.py?ref=main",
+    "git": "https://api.github.com/repos/acme/payments-api/git/blobs/881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c",
+    "html": "https://github.com/acme/payments-api/blob/main/src/payments/auth.py"
+  }
+}

@@ -1,0 +1,275 @@
+{
+  "dataset": "sample_repo",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/sample_repo",
+  "valid": true,
+  "seconds": 27.113,
+  "usage": {
+    "calls": 4,
+    "failed_calls": 0,
+    "prompt_tokens": 16909,
+    "completion_tokens": 5584,
+    "total_tokens": 22493,
+    "latency": 25.121
+  },
+  "cost": {
+    "total_tokens": 22493,
+    "tokens_per_finding": 2044.8
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "sample_repo",
+    "target": "data/sample_repo",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 11,
+      "true_positives": 7,
+      "false_positives": 4,
+      "false_negatives": 0,
+      "labeled_defects": 7
+    },
+    "metrics": {
+      "precision": 0.6364,
+      "recall": 1.0,
+      "f1": 0.7778,
+      "false_positive_rate": 0.3636,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-secret": "会话密钥硬编码在源码中，且随 token 下发给客户端",
+      "weak-password-hash": "无盐 SHA-256 存储口令，易被彩虹表/GPU 破解",
+      "sql-string-concat": "SQL 用 f-string 拼接用户名，存在注入风险",
+      "exception-leak": "调试登录入口无鉴权且原样回传内部异常信息",
+      "missing-input-validation": "login 缺少入参校验，空/缺失参数导致异常穿透为 500",
+      "logout-noop": "logout 是空实现，会话无法失效且无过期机制",
+      "no-login-rate-limit": "登录接口无非失败次数限制，可被暴力破解"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "会话密钥硬编码在源码中，且随 token 下发给客户端",
+        "file": "app/auth/service.py",
+        "line": 11,
+        "defect_id": "hardcoded-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "current_user 不校验 token 签名，任意用户可被伪造登录",
+        "file": "app/auth/service.py",
+        "line": 47,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 2,
+        "title": "无盐 SHA-256 存储口令，易被彩虹表/GPU 破解",
+        "file": "app/auth/service.py",
+        "line": 19,
+        "defect_id": "weak-password-hash",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "SQL 用 f-string 拼接用户名，存在注入风险",
+        "file": "app/db/repository.py",
+        "line": 24,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "调试登录入口无鉴权且原样回传内部异常信息",
+        "file": "app/api/routes.py",
+        "line": 19,
+        "defect_id": "exception-leak",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "login 缺少入参校验，空/缺失参数导致异常穿透为 500",
+        "file": "app/auth/service.py",
+        "line": 22,
+        "defect_id": "missing-input-validation",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "logout 是空实现，会话无法失效且无过期机制",
+        "file": "app/auth/service.py",
+        "line": 34,
+        "defect_id": "logout-noop",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "login 从不检查 is_active，已停用账号仍可登录",
+        "file": "app/auth/service.py",
+        "line": 29,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 8,
+        "title": "登录接口无非失败次数限制，可被暴力破解",
+        "file": "app/api/routes.py",
+        "line": 9,
+        "defect_id": "no-login-rate-limit",
+        "match": "line"
+      },
+      {
+        "index": 9,
+        "title": "模块级可变全局用户表，进程内共享且非线程安全",
+        "file": "app/db/repository.py",
+        "line": 10,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 10,
+        "title": "仓库缺少任何测试，核心认证逻辑无回归保障",
+        "file": "app/auth/service.py",
+        "line": 0,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "会话密钥硬编码在源码中，且随 token 下发给客户端",
+      "description": "SECRET_KEY 以明文常量形式写死在源码里（\"hardcoded-secret-key-for-demo\"），并且 login 直接把它拼进返回给客户端的 token：f\"{user.name}.{SECRET_KEY}\"。任何能看到源码或拿到自己 token 的人都能得到该密钥，从而伪造任意用户的会话；同时密钥无法在不改代码、不重新发版的情况下轮换。",
+      "file": "app/auth/service.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "从环境变量或密钥管理服务读取（如 os.environ[\"SESSION_SECRET\"]，缺失时启动即失败）；用 HMAC/JWT 对用户名+有效期做签名，不要把密钥本身放进 token。",
+      "evidence": "SECRET_KEY = \"hardcoded-secret-key-for-demo\"；login 中 return f\"{user.name}.{SECRET_KEY}\"",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "current_user 不校验 token 签名，任意用户可被伪造登录",
+      "description": "current_user 只用 rsplit(\".\", 1)[0] 取出 token 里 \"点\" 前面的部分当作用户名，再直接查库返回用户，完全忽略后半段密钥是否正确。因此攻击者只要构造 token=\"admin.任意字符串\" 就能被识别为 admin，构成认证绕过（越权访问）。该缺陷不在 README 列出的清单里，是审查中新发现的真实逻辑漏洞。",
+      "file": "app/auth/service.py",
+      "line": 47,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "用 hmac.compare_digest 校验 token 签名后再信任用户名，并让 token 载荷携带过期时间：\nname, sig = session_token.rsplit(\".\", 1)\nexpected = hmac.new(SECRET_KEY.encode(), name.encode(), hashlib.sha256).hexdigest()\nif not hmac.compare_digest(sig, expected):\n    return None\nreturn find_user(name)",
+      "evidence": "def current_user(session_token): ... name = session_token.rsplit(\".\", 1)[0]; return find_user(name)  — 未对 SECRET_KEY 部分做任何比对",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "无盐 SHA-256 存储口令，易被彩虹表/GPU 破解",
+      "description": "hash_password 使用无盐 sha256(password.encode()) 作为口令摘要。相同口令产生相同摘要，可被预计算彩虹表与 GPU 暴力破解；一旦库泄露（User.password_hash 为普通字段，可被序列化外泄）即等于口令泄露。同时 login 中用 == 比较摘要，属于非常量时间比较。",
+      "file": "app/auth/service.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用专用口令哈希算法：bcrypt / argon2-cffi（如 bcrypt.hashpw(password.encode(), bcrypt.gensalt())），校验时用库提供的 checkpw（内部为常量时间比较），并设置合理的 cost 参数。",
+      "evidence": "def hash_password(password): return hashlib.sha256(password.encode()).hexdigest()；login: if user.password_hash == hash_password(password)",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "SQL 用 f-string 拼接用户名，存在注入风险",
+      "description": "build_user_query 直接以 f\"SELECT ... WHERE name = '{username}'\" 拼接来自请求参数的用户名，未做任何转义或参数化。当前 _USERS 是内存字典、该函数暂无调用方，但它是对齐真实数据库的公开接口，一旦被接入真实 DB 就会形成 SQL 注入（如 username=\"' OR '1'='1\"）。",
+      "file": "app/db/repository.py",
+      "line": 24,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改为参数化查询，让驱动处理转义：return (\"SELECT name, password_hash FROM users WHERE name = %s\", (username,))；或使用 SQLAlchemy 等 ORM 的条件表达式而非字符串拼接。若该函数已废弃，直接删除以免被误用。",
+      "evidence": "def build_user_query(username): return f\"SELECT name, password_hash FROM users WHERE name = '{username}'\"",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "调试登录入口无鉴权且原样回传内部异常信息",
+      "description": "handle_debug_login 没有任何调用方身份校验，任何人都能访问；异常分支 return {\"status\": 500, \"error\": repr(exc)} 把 repr(exc) 直接返回给客户端，会泄露文件路径、内部类名、库版本乃至用户是否存在等信息（如 find_user 抛出的 \"用户不存在：xxx\"），为攻击者提供枚举与探测依据。",
+      "file": "app/api/routes.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "生产环境删除或以显式 debug 开关+管理员鉴权保护该入口；对外统一返回通用错误码，仅在服务端日志中记录异常：\nlogger.exception(\"login failed\")\nreturn {\"status\": 500, \"message\": \"内部错误\"}",
+      "evidence": "except Exception as exc: return {\"status\": 500, \"error\": repr(exc)}",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "login 缺少入参校验，空/缺失参数导致异常穿透为 500",
+      "description": "login 未校验 username/password。若请求体缺失 password（request.get 返回 None），hash_password(None) 会抛 AttributeError；若缺 username，find_user(None) 抛 LookupError。handle_login 没有 try/except 也没有检查异常，因此\"用户不存在\"这类正常业务场景会抛未捕获异常，返回 500 而不是预期的 401，同时异常细节可能进入错误页。",
+      "file": "app/auth/service.py",
+      "line": 22,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在 login 开头做显式校验：\nif not isinstance(username, str) or not isinstance(password, str) or not username or not password:\n    return None\n并在 find_user 查不到用户时返回 None 而非抛异常（或让 handle_login 捕获 LookupError 并统一转成 401）。",
+      "evidence": "login: user = find_user(username); if user.password_hash == hash_password(password)（无空值判断）；handle_login: token = login(username, password) 未捕获异常",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "logout 是空实现，会话无法失效且无过期机制",
+      "description": "logout(session_token) 直接 return True，参数完全未使用，token 在登出后依然可被 current_user 接受，形成\"登出后会话仍有效\"的会话固定/悬挂问题。配套的 Session 模型虽有 expires_at 字段，但登录时从未生成 Session、也从未写入或校验过期时间，等于会话永不过期。",
+      "file": "app/auth/service.py",
+      "line": 34,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "引入服务端会话存储（token -> 用户名/过期时间）或带 exp 的签名 token：logout 时从存储中删除该 token（或加入吊销黑名单）；签发时写入 expires_at，current_user 中校验过期时间。",
+      "evidence": "def logout(session_token): return True；Session.expires_at 默认 \"\" 且在 service.py 中从未被引用",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "login 从不检查 is_active，已停用账号仍可登录",
+      "description": "User 定义了 is_active: bool = True 字段，但 login 只比对 password_hash，从不校验 is_active 或 is 相关状态。因此管理员把账号置为停用（is_active=False）后该账号仍能正常登录并获取 token，访问控制失效（封禁/离职账号无法真正收回权限）。",
+      "file": "app/auth/service.py",
+      "line": 29,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在口令校验通过后、签发 token 前检查状态：\nif not user.is_active:\n    return None\n并考虑在 current_user 中同样检查，以便停用后立即失效已存在的会话。",
+      "evidence": "login: user = find_user(username); if user.password_hash == hash_password(password): return token —— 全程未引用 user.is_active；models.py: is_active: bool = True",
+      "confidence": 0.85,
+      "source": "react"
+    },
+    {
+      "title": "登录接口无非失败次数限制，可被暴力破解",
+      "description": "handle_login 每次失败只返回 401，没有失败计数、锁定或退避策略，攻击者可以无限次高速尝试口令；结合无盐 sha256 的弱哈希与内存用户表，口令爆破成本极低。",
+      "file": "app/api/routes.py",
+      "line": 9,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "按用户名+客户端 IP 做滑动窗口限流（如 Redis 计数器），失败次数超阈值后临时锁定或加入指数退避/验证码；同时保留审计日志便于发现撞库。",
+      "evidence": "handle_login 中失败分支：return {\"status\": 401, \"message\": \"用户名或密码错误\"} —— 无任何计数/限流逻辑",
+      "confidence": 0.85,
+      "source": "react"
+    },
+    {
+      "title": "模块级可变全局用户表，进程内共享且非线程安全",
+      "description": "_USERS 是模块级可变字典，save_user/find_user 直接对其读写，没有锁也没有任何封装（测试之间还会相互污染状态，因为无法重置）。这既是维护性问题，也让\"演示实现替换为真实数据库\"的迁移更困难、更容易出现并发写入竞态。",
+      "file": "app/db/repository.py",
+      "line": 10,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "把存储封装成带实例状态的 Repository 类（或注入连接/会话），由调用方持有单例；若必须保留模块级状态，至少提供 reset()/clear() 便于测试隔离，并加上线程锁保护写操作。",
+      "evidence": "_USERS: dict[str, User] = {}；save_user 中 _USERS[user.name] = user",
+      "confidence": 0.8,
+      "source": "react"
+    },
+    {
+      "title": "仓库缺少任何测试，核心认证逻辑无回归保障",
+      "description": "仓库根目录仅有 app/ 与 README.md，没有 tests 目录或任何测试文件；而认证逻辑（token 生成/校验、登出、口令比对）恰恰是最需要回归保障的部分，上述缺陷（空参数、伪造 token、停用账号）都能被简单单测立即发现。",
+      "file": "app/auth/service.py",
+      "line": 0,
+      "severity": "low",
+      "category": "test",
+      "suggestion": "补充 pytest 用例：恶意 token（\"admin.x\"）应被 current_user 拒绝、password 为 None 时 login 应返回 None/401 而非抛异常、logout 后原 token 应失效、is_active=False 的账号登录应失败。",
+      "evidence": "ls 输出仅 \"app/\" 与 \"README.md\"；静态检索未发现任何 test 模块",
+      "confidence": 0.8,
+      "source": "react"
+    }
+  ]
+}

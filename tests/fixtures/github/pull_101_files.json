@@ -1,0 +1,26 @@
+[
+  {
+    "sha": "881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c",
+    "filename": "src/payments/auth.py",
+    "status": "modified",
+    "additions": 4,
+    "deletions": 3,
+    "changes": 7,
+    "blob_url": "https://github.com/acme/payments-api/blob/c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293/src/payments/auth.py",
+    "raw_url": "https://github.com/acme/payments-api/raw/c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293/src/payments/auth.py",
+    "contents_url": "https://api.github.com/repos/acme/payments-api/contents/src/payments/auth.py?ref=c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293",
+    "patch": "@@ -1,8 +1,9 @@\n import hmac\n+import hashlib\n \n SECRET = b''\n \n \n def verify_token(token: str) -> bool:\n-    return token == SECRET.decode()\n+    digest = hmac.new(SECRET, token.encode(), hashlib.sha256).hexdigest()\n+    return hmac.compare_digest(digest, digest)\n"
+  },
+  {
+    "sha": "cc2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5",
+    "filename": "tests/test_auth.py",
+    "status": "added",
+    "additions": 37,
+    "deletions": 0,
+    "changes": 37,
+    "blob_url": "https://github.com/acme/payments-api/blob/c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293/tests/test_auth.py",
+    "raw_url": "https://github.com/acme/payments-api/raw/c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293/tests/test_auth.py",
+    "contents_url": "https://api.github.com/repos/acme/payments-api/contents/tests/test_auth.py?ref=c01d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293",
+    "patch": "@@ -0,0 +1,37 @@\n+import pytest\n+\n+from payments.auth import verify_token\n+\n+\n+@pytest.mark.parametrize(\"token\", [\"\", \"a\", \"a\" * 512])\n+def test_verify_token_never_raises(token: str) -> None:\n+    assert verify_token(token) is False\n"
+  }
+]

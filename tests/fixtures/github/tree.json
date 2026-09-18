@@ -1,0 +1,99 @@
+{
+  "sha": "3f1e2c9b7a4d5e6f8a0b1c2d3e4f5a6b7c8d9e0f",
+  "url": "https://api.github.com/repos/acme/payments-api/git/trees/3f1e2c9b7a4d5e6f8a0b1c2d3e4f5a6b7c8d9e0f",
+  "truncated": false,
+  "tree": [
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e4b1c0d9f2a3b4c5d6e7f8091a2b3c4d5e6f708",
+      "size": 199,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/8e4b1c0d9f2a3b4c5d6e7f8091a2b3c4d5e6f708"
+    },
+    {
+      "path": "pyproject.toml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11a2b3c4d5e6f7081a2b3c4d5e6f708192a3b4c5d",
+      "size": 812,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/11a2b3c4d5e6f7081a2b3c4d5e6f708192a3b4c5d"
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "22b3c4d5e6f7081a2b3c4d5e6f708192a3b4c5d6e",
+      "url": "https://api.github.com/repos/acme/payments-api/git/trees/22b3c4d5e6f7081a2b3c4d5e6f708192a3b4c5d6e"
+    },
+    {
+      "path": "docs/architecture.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "33c4d5e6f7081a2b3c4d5e6f708192a3b4c5d6e7f",
+      "size": 3300,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/33c4d5e6f7081a2b3c4d5e6f708192a3b4c5d6e7f"
+    },
+    {
+      "path": "src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "44d5e6f7081a2b3c4d5e6f708192a3b4c5d6e7f80",
+      "url": "https://api.github.com/repos/acme/payments-api/git/trees/44d5e6f7081a2b3c4d5e6f708192a3b4c5d6e7f80"
+    },
+    {
+      "path": "src/payments",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "55e6f7081a2b3c4d5e6f708192a3b4c5d6e7f8091",
+      "url": "https://api.github.com/repos/acme/payments-api/git/trees/55e6f7081a2b3c4d5e6f708192a3b4c5d6e7f8091"
+    },
+    {
+      "path": "src/payments/__init__.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "66f7081a2b3c4d5e6f708192a3b4c5d6e7f80912a",
+      "size": 96,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/66f7081a2b3c4d5e6f708192a3b4c5d6e7f80912a"
+    },
+    {
+      "path": "src/payments/api.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77081a2b3c4d5e6f708192a3b4c5d6e7f80912a3b",
+      "size": 4210,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/77081a2b3c4d5e6f708192a3b4c5d6e7f80912a3b"
+    },
+    {
+      "path": "src/payments/auth.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c",
+      "size": 202,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/881a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c"
+    },
+    {
+      "path": "src/payments/db.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "991a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5",
+      "size": 1930,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/991a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5"
+    },
+    {
+      "path": "tests",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "aa1a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5",
+      "url": "https://api.github.com/repos/acme/payments-api/git/trees/aa1a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5"
+    },
+    {
+      "path": "tests/test_auth.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bb1a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5",
+      "size": 2140,
+      "url": "https://api.github.com/repos/acme/payments-api/git/blobs/bb1a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4c5"
+    }
+  ]
+}

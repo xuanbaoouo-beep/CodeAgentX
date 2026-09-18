@@ -1,0 +1,23 @@
+{
+  "generated_for": "CodeAgentX W7 验收：MCP GitHub 读仓库 / PR，并据此生成上下文",
+  "captured_at": null,
+  "source": "GitHub REST API v3 官方文档字段（https://docs.github.com/rest）",
+  "how": "本机无法直连 api.github.com（SSL 证书校验与吊销检查均失败），因此这些响应是按官方文档字段与嵌套结构【手工构造】的离线样例，并非真实抓包录制。字段名/类型/层级与线上一致；sha、id 等标识符为虚构值。",
+  "repo": "acme/payments-api（虚构仓库）",
+  "endpoints": {
+    "repo.json": "GET /repos/acme/payments-api",
+    "tree.json": "GET /repos/acme/payments-api/git/trees/main?recursive=1",
+    "contents_readme.json": "GET /repos/acme/payments-api/contents/README.md?ref=main",
+    "contents_auth_py.json": "GET /repos/acme/payments-api/contents/src/payments/auth.py?ref=main",
+    "contents_dir_src_payments.json": "GET /repos/acme/payments-api/contents/src/payments?ref=main",
+    "pulls.json": "GET /repos/acme/payments-api/pulls?state=open",
+    "pull_101.json": "GET /repos/acme/payments-api/pulls/101",
+    "pull_101_files.json": "GET /repos/acme/payments-api/pulls/101/files",
+    "pull_101.diff": "GET /repos/acme/payments-api/pulls/101（Accept: application/vnd.github.v3.diff）"
+  },
+  "error_payloads": {
+    "not_found.json": "404 响应体（GET 不存在的仓库/路径）",
+    "unauthorized.json": "401 响应体（令牌无效）",
+    "rate_limited.json": "403 响应体 + x-ratelimit-remaining: 0（触发限流）"
+  }
+}

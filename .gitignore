@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.local
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Data & artifacts
+data/outputs/
+data/vector_store/
+# Qdrant 本地 Docker 的数据卷挂载点（二进制段文件，不该进版本库）
+data/qdrant_storage/
+*.log
+logs/
+
+# 运行/调试产物
+.workflow_state.json
+*.zip
+tmp_*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

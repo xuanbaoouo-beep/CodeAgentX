@@ -1,0 +1,41 @@
+# 一键起「接口 + 界面」：docker compose up --build
+#
+# 密钥从 .env 注入（变量名与本地开发完全一致，见 .env.example）；
+# .env 不存在也能起，只是 /health 会显示 llm_configured=false。
+#
+#   接口  http://127.0.0.1:8000/docs
+#   界面  http://127.0.0.1:8501
+#
+# 只绑 127.0.0.1：服务自身没有鉴权，别顺手暴露到局域网/公网（见 README 的安全说明）。
+services:
+  api:
+    build: .
+    image: codeagentx:latest
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  ui:
+    build: .
+    image: codeagentx:latest
+    env_file:
+      - path: .env
+        required: false
+    command:
+      - streamlit
+      - run
+      - src/codeagentx/ui/streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --browser.gatherUsageStats=false
+    ports:
+      - "127.0.0.1:8501:8501"
+
+# 想审宿主机上的代码，给对应 service 加一个卷再把目标填成容器里的路径：
+#
+#   volumes:
+#     - /path/to/your/code:/work
+#
+# 然后在界面/请求体里把 target 写成 /work 或 /work/src/api（或 /work/app.py 只审一个文件）。

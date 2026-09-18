@@ -1,0 +1,213 @@
+{
+  "dataset": "url_shortener",
+  "protocol": "reflection",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/url_shortener/target",
+  "valid": true,
+  "seconds": 122.014,
+  "usage": {
+    "calls": 7,
+    "failed_calls": 0,
+    "prompt_tokens": 31494,
+    "completion_tokens": 28214,
+    "total_tokens": 59708,
+    "latency": 119.952
+  },
+  "cost": {
+    "total_tokens": 59708,
+    "tokens_per_finding": 7463.5
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "url_shortener",
+    "target": "data/evaluation/url_shortener/target",
+    "protocol": "reflection",
+    "tolerance": 3,
+    "counts": {
+      "reported": 8,
+      "true_positives": 5,
+      "false_positives": 3,
+      "false_negatives": 0,
+      "labeled_defects": 5
+    },
+    "metrics": {
+      "precision": 0.625,
+      "recall": 1.0,
+      "f1": 0.7692,
+      "false_positive_rate": 0.375,
+      "location_precision": 0.8
+    },
+    "matched": {
+      "missing-scheme-validation": "URL 校验只判非空、未做 scheme/host 白名单，形成开放重定向",
+      "predictable-short-code": "短码由全局自增计数器生成，可顺序枚举",
+      "ssrf-preview-fetch": "预览接口按用户可控 URL 发起请求，存在 SSRF",
+      "open-redirect": "统计接口无鉴权，任意调用者可读全站聚合指标",
+      "unauth-stats-endpoint": "跳转未校验短码存在，产生无效 302 并污染点击统计"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "URL 校验只判非空、未做 scheme/host 白名单，形成开放重定向",
+        "file": "app/validators.py",
+        "line": 17,
+        "defect_id": "missing-scheme-validation",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "短码由全局自增计数器生成，可顺序枚举",
+        "file": "app/shortener.py",
+        "line": 35,
+        "defect_id": "predictable-short-code",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "预览接口按用户可控 URL 发起请求，存在 SSRF",
+        "file": "app/preview.py",
+        "line": 31,
+        "defect_id": "ssrf-preview-fetch",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "统计接口无鉴权，任意调用者可读全站聚合指标",
+        "file": "app/api.py",
+        "line": 31,
+        "defect_id": "open-redirect",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "跳转未校验短码存在，产生无效 302 并污染点击统计",
+        "file": "app/api.py",
+        "line": 27,
+        "defect_id": "unauth-stats-endpoint",
+        "match": "keyword"
+      },
+      {
+        "index": 5,
+        "title": "全局计数与短码计数器为非原子读-改-写，并发下丢计数/重复短码",
+        "file": "app/store.py",
+        "line": 29,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 6,
+        "title": "URL 未规范化即入库，normalize() 在创建入口未被调用",
+        "file": "app/validators.py",
+        "line": 20,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 7,
+        "title": "短链与计数保存在进程内 dict，重启丢失且多 worker 不一致",
+        "file": "app/store.py",
+        "line": 0,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "URL 校验只判非空、未做 scheme/host 白名单，形成开放重定向",
+      "description": "is_valid_url() 只返回 isinstance(url, str) and len(url) > 0，模块内已定义的 ALLOWED_SCHEMES 完全没有被引用；同时跳转侧 api.py:28 的 redirect() 直接把存储值作为 302 的 location 返回，出口也没有任何域名/协议校验。两层叠加后，POST /shorten 提交任意非空字符串（如 https://phish.example/，或 javascript:alert(1) 这类非法 scheme）都会被原样入库并由本站短链跳走：攻击者可拿本站可信域名当钓鱼跳板（开放重定向），非法 scheme 则至少造成脏数据与不可预期的短链行为。触发条件：提交任意外部/非法 URL 后把短码发给受害者。",
+      "file": "app/validators.py",
+      "line": 17,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "把校验收敛到入口、并在出口保留一层纵深防御（替换上一版里 400/404 混用的写法）：\n\n# validators.py\nfrom urllib.parse import urlparse\n\ndef normalize(url):\n    return url.strip() if isinstance(url, str) else \"\"\n\ndef is_valid_url(url):\n    if not isinstance(url, str) or not url.strip():\n        return False\n    p = urlparse(url.strip())\n    return p.scheme in (\"http\", \"https\") and bool(p.hostname)\n\n# api.py 入口：校验失败 = 输入非法 -> 400\ndef create_link(request):\n    url = normalize(request.get(\"url\", \"\"))\n    if not is_valid_url(url):\n        return {\"status\": 400, \"message\": \"URL 非法\"}\n    return {\"status\": 200, \"code\": shorten(url)}\n\n# api.py 出口：纵深防御，不依赖入口是否严格\nALLOWED_HOSTS = {\"example.com\", \"www.example.com\"}   # 只允许自有/合作域名时可启用\ndef redirect(code):\n    target = store.get(code)\n    if target is None or not is_valid_url(target):\n        return {\"status\": 404, \"message\": \"短码不存在\"}   # 统一 404，不区分内部状态\n    if ALLOWED_HOSTS and urlparse(target).hostname not in ALLOWED_HOSTS:\n        return {\"status\": 404, \"message\": \"短码不存在\"}\n    store.record_hit(code)\n    return {\"status\": 302, \"location\": target}\n\n若上层会把 location 写进真实的 Location 响应头，需过滤 CR/LF（包括解码后的 %0d%0a），避免响应头注入。\n最小复现：curl -X POST http://localhost:8000/shorten -d '{\"url\":\"https://phish.example/\"}'，再 curl -i http://localhost:8000/<返回的短码>，可观察到 302 到站外。",
+      "evidence": "app/validators.py\n  ALLOWED_SCHEMES = (\"http://\", \"https://\")\n  def is_valid_url(url):                       # :17\n      return isinstance(url, str) and len(url) > 0   # 未使用 ALLOWED_SCHEMES\n\napp/api.py\n  def redirect(code):\n      target = store.get(code)\n      store.record_hit(code)                          # :27\n      return {\"status\": 302, \"location\": target}      # :28\n\napp/api.py（create_link）\n      url = request.get(\"url\", \"\")\n      if not is_valid_url(url):\n          return {\"status\": 400, \"message\": \"URL 非法\"}\n      return {\"status\": 200, \"code\": shorten(url)}",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "短码由全局自增计数器生成，可顺序枚举",
+      "description": "next_code() 读取模块级 _counter，转 36 进制后自增返回，短码序列完全可预测且连续（0,1,2,...）。外部调用者调用一次 POST /shorten 拿到首个短码后，按 36 进制递增即可遍历全站短链、访问他人创建的链接（信息遍历/隐私泄露），也便于批量抓取。触发条件：连续创建若干短链后按序递增短码请求。",
+      "file": "app/shortener.py",
+      "line": 35,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用密码学安全随机短码，并在写入前判重、碰撞时重试：\n\nimport secrets, string\n_ALPHABET = string.ascii_letters + string.digits\n\ndef next_code():\n    return \"\".join(secrets.choice(_ALPHABET) for _ in range(7))\n\ndef shorten(url):\n    for _ in range(5):\n        code = next_code()\n        if store.get(code) is None:      # 复用 store 现有的读接口做唯一性检查\n            # 用 shortener.py 中现有的 store 写入调用落库（本报告未取到该函数名，沿用原实现即可）\n            return code\n    raise RuntimeError(\"短码分配失败\")\n\n7 位字母数字已有约 3.5e12 空间，若业务量大可加长到 8 位，或由存储层做唯一索引兜底。\n最小复现：连续 5 次 curl -X POST http://localhost:8000/shorten -d '{\"url\":\"https://a.com\"}'，观察返回码为 0、1、2、3、4 的 36 进制序列。",
+      "evidence": "app/shortener.py\n  _counter = 0\n\n  def next_code():\n      global _counter\n      code = _to_base36(_counter)   # :35 序列完全可预测\n      _counter += 1\n      return code",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "预览接口按用户可控 URL 发起请求，存在 SSRF",
+      "description": "fetch_title() 把请求参数中的 url 原样交给 _http_get 发起服务端请求，入口既没有协议白名单，也没有拦截回环/内网/链路本地地址。请求方只要让服务端去请求 http://169.254.169.254/latest/meta-data/（云元数据）、http://127.0.0.1:6379/（本地服务探测）或 http://10.0.0.5/ 等地址，即可探测内网服务或窃取实例凭据（SSRF）。触发条件：GET /preview?url=http://169.254.169.254/latest/meta-data/。",
+      "file": "app/preview.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "抓取前做协议白名单 + 解析后判定公网 IP，并禁止（或逐跳重校验）重定向：\n\nimport ipaddress, socket\nfrom urllib.parse import urlparse\n\ndef _is_public_http_url(url):\n    p = urlparse(url)\n    if p.scheme not in (\"http\", \"https\") or not p.hostname:\n        return False\n    try:\n        infos = socket.getaddrinfo(p.hostname, None)\n    except OSError:\n        return False\n    return all(ipaddress.ip_address(i[4][0]).is_global for i in infos)\n\ndef fetch_title(url):\n    if not _is_public_http_url(url):\n        return \"\"\n    html = _http_get(url)\n    return _extract_title(html)\n\n同时建议在 _http_get 层补齐：连接/读取超时、响应体大小上限、TLS 校验开启、不自动跟随重定向（或每跳重新校验），并在 socket 连接后复查对端 IP 以缓解 DNS 重绑定。\n最小复现：curl -i 'http://localhost:8000/preview?url=http://127.0.0.1:8000/stats'。",
+      "evidence": "app/preview.py\n  def fetch_title(url):\n      html = _http_get(url)      # :31 用户可控 url 直接进入服务端请求\n      return _extract_title(html)\n\n  def preview(request):\n      return {\"status\": 200, \"title\": fetch_title(request.get(\"url\", \"\"))}",
+      "confidence": 0.88,
+      "source": "reflection"
+    },
+    {
+      "title": "统计接口无鉴权，任意调用者可读全站聚合指标",
+      "description": "stats() 不校验任何身份，直接返回全站短链数与累计点击数。泄露内容是两个聚合整数，单看危害有限，因此严重度定为 low；但与可枚举的短码结合后，未授权方可获得业务量信息，若后续在该接口追加明细字段风险会上升。触发条件：直接 GET /stats。",
+      "file": "app/api.py",
+      "line": 31,
+      "severity": "low",
+      "category": "security",
+      "suggestion": "该样本没有任何鉴权设施，应在框架层统一接入（Flask before_request / FastAPI Depends / 网关策略），而不是只在单个视图里加判断。最小实现可用环境变量提供的 API key 做常量时间比较：\n\nimport os, hmac\n\ndef _authorized(headers):\n    expected = os.environ.get(\"ADMIN_API_KEY\", \"\")\n    provided = headers.get(\"X-API-Key\", \"\")\n    return bool(expected) and hmac.compare_digest(provided, expected)\n\ndef stats(request):\n    if not _authorized(request.get(\"headers\", {})):\n        return {\"status\": 401, \"message\": \"未授权\"}\n    return {\"links\": len(store.all_links()), \"hits\": store.total_hits()}\n\n若统计面向登录用户，应改为按用户维度过滤，只返回该用户自己的数据。\n最小复现：curl -i http://localhost:8000/stats（当前应无需任何凭据即返回 200）。",
+      "evidence": "app/api.py\n  def stats(request):\n      return {                                   # :31\n          \"links\": len(store.all_links()),\n          \"hits\": store.total_hits(),\n      }\n（函数体内无任何身份/凭据判断语句）",
+      "confidence": 0.85,
+      "source": "reflection"
+    },
+    {
+      "title": "跳转未校验短码存在，产生无效 302 并污染点击统计",
+      "description": "redirect() 取出 store.get(code) 后不判空，直接调用 store.record_hit(code) 并返回 {\"status\": 302, \"location\": target}。当短码不存在时（如 GET /zzzzzzz），会为不存在的短码写入一次点击，使 store.total_hits() 与真实点击量不符；同时返回值中 location 为 None，跳转语义不成立。触发条件：请求任意不存在的短码。",
+      "file": "app/api.py",
+      "line": 27,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "先判空再计数，并采用本报告 finding 1 中给出的最终 redirect() 实现（同时含目标安全校验）：\n\ndef redirect(code):\n    target = store.get(code)\n    if target is None or not is_valid_url(target):\n        return {\"status\": 404, \"message\": \"短码不存在\"}\n    store.record_hit(code)\n    return {\"status\": 302, \"location\": target}\n\n语义约定（消除上一版自相矛盾之处）：create_link 校验失败返回 400（输入非法）；redirect 对不存在的短码或校验不通过的目标统一返回 404，不区分二者以免泄露内部状态。\n最小复现：先记录 GET /stats 的 hits，再 curl -i http://localhost:8000/zzzzzzz，然后重新 GET /stats，可看到 hits 被无端 +1。",
+      "evidence": "app/api.py\n  def redirect(code):\n      target = store.get(code)        # 可能为 None\n      store.record_hit(code)          # :27 无条件计数\n      return {\"status\": 302, \"location\": target}   # :28\n（函数体内没有 target is None 的分支）",
+      "confidence": 0.85,
+      "source": "reflection"
+    },
+    {
+      "title": "全局计数与短码计数器为非原子读-改-写，并发下丢计数/重复短码",
+      "description": "store.record_hit 用 _HITS[code] = _HITS.get(code, 0) + 1 更新点击，shortener.next_code 用 _counter += 1 推进短码，二者都是在模块级可变状态上的“读-改-写”，不是原子操作。并发请求下，多个线程可能读到同一旧值：一方面点击被覆盖丢失，另一方面同一进程内两个请求可能拿到同一个 code，后者覆盖前者已保存的链接。触发条件：对同一短码并发请求 N 次，或并发调用 POST /shorten。",
+      "file": "app/store.py",
+      "line": 29,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "本进程内先用锁保护读-改-写：\n\n# store.py\nimport threading\n_lock = threading.Lock()\n\ndef record_hit(code):\n    with _lock:\n        _HITS[code] = _HITS.get(code, 0) + 1\n\n# shortener.py\nwith _lock:\n    code = _to_base36(_counter)\n    _counter += 1\n\n长期方案是把计数交给存储层保证原子性（Redis INCR，或数据库短码唯一索引 + 冲突重试），这样多进程部署下也成立。最小复现：对同一短码并发发起 1000 次请求，再 GET /stats，可见 hits 小于 1000。",
+      "evidence": "app/store.py\n  _LINKS: dict[str, str] = {}\n  _HITS: dict[str, int] = {}\n\n  def record_hit(code):\n      \"\"\"记录一次点击。\"\"\"\n      _HITS[code] = _HITS.get(code, 0) + 1   # :29 非原子读-改-写\n\napp/shortener.py\n      global _counter\n      code = _to_base36(_counter)\n      _counter += 1",
+      "confidence": 0.8,
+      "source": "reflection"
+    },
+    {
+      "title": "URL 未规范化即入库，normalize() 在创建入口未被调用",
+      "description": "validators.normalize() 实现的是 url.strip()，但 api.create_link 直接把 request.get(\"url\", \"\") 交给 is_valid_url 并入库，在创建入口看不到对 normalize 的调用。结果是带首尾空白的输入（如 \"  https://example.com  \"）会被原样保存，跳转目标携带空白，下游客户端解析可能出现异常；同时 normalize 与 is_valid_url 语义脱节，维护者容易误以为规范化已经生效。",
+      "file": "app/validators.py",
+      "line": 20,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "把规范化收敛到一处，并让校验基于规范化后的值（与本报告 finding 1 的 create_link 实现一致）：\n\ndef normalize(url):\n    return url.strip() if isinstance(url, str) else \"\"\n\ndef create_link(request):\n    url = normalize(request.get(\"url\", \"\"))\n    if not is_valid_url(url):\n        return {\"status\": 400, \"message\": \"URL 非法\"}\n    return {\"status\": 200, \"code\": shorten(url)}\n\n若最终确认 normalize 不需要保留，应删除该函数以免误导；规范化与校验只保留一种语义。",
+      "evidence": "app/validators.py\n  def normalize(url):        # :20\n      \"\"\"去掉首尾空白，返回规范化后的 URL。\"\"\"\n      return url.strip()\n\napp/api.py（create_link，仓库内可见的唯一创建入口）\n      url = request.get(\"url\", \"\")        # 未调用 normalize\n      if not is_valid_url(url):\n          return {\"status\": 400, \"message\": \"URL 非法\"}\n      return {\"status\": 200, \"code\": shorten(url)}",
+      "confidence": 0.75,
+      "source": "reflection"
+    },
+    {
+      "title": "短链与计数保存在进程内 dict，重启丢失且多 worker 不一致",
+      "description": "store 用模块级 _LINKS / _HITS 两个 dict 保存全部数据：进程重启后数据全部丢失，旧短码立即失效；若以多进程方式部署（如 gunicorn -w N），各 worker 各持一份副本，短链可见性与点击统计会随请求落在哪个 worker 而不同。触发条件：重启服务后访问旧短码，或按多 worker 部署后交替命中不同 worker。",
+      "file": "app/store.py",
+      "line": 0,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "把存储抽成仓储接口（get/add/record_hit/all_links/total_hits），当前内存实现只用于本地开发与测试，生产切到 Redis 或数据库（短码唯一索引，点击用 INCR，过期用 TTL）。这样 finding 5 的原子性与本条的跨进程一致性问题都由存储层统一解决，业务代码不需要感知实现细节。",
+      "evidence": "app/store.py\n  _LINKS: dict[str, str] = {}\n  _HITS: dict[str, int] = {}\n（全量数据仅存在于模块级字典中，无持久化与淘汰逻辑；本报告未取到这两行的确切行号）",
+      "confidence": 0.7,
+      "source": "reflection"
+    }
+  ]
+}

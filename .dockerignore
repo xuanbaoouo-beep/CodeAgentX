@@ -1,0 +1,19 @@
+# 构建上下文瘦身：`.venv` 与评估数据都不该进镜像（前者几十 MB 且平台相关）
+.venv/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+
+# 按需复制的数据在这里排除，Dockerfile 只显式 COPY data/sample_repo
+data/*
+!data/sample_repo/
+!data/sample_repo/**
+
+logs/
+docs/
+examples/
+tests/
+
+.env

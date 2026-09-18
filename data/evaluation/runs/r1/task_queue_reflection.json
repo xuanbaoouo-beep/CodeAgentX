@@ -1,0 +1,254 @@
+{
+  "dataset": "task_queue",
+  "protocol": "reflection",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/task_queue/target",
+  "valid": true,
+  "seconds": 93.29,
+  "usage": {
+    "calls": 7,
+    "failed_calls": 0,
+    "prompt_tokens": 29744,
+    "completion_tokens": 18942,
+    "total_tokens": 48686,
+    "latency": 90.993
+  },
+  "cost": {
+    "total_tokens": 48686,
+    "tokens_per_finding": 4868.6
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "task_queue",
+    "target": "data/evaluation/task_queue/target",
+    "protocol": "reflection",
+    "tolerance": 3,
+    "counts": {
+      "reported": 10,
+      "true_positives": 6,
+      "false_positives": 4,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75,
+      "false_positive_rate": 0.4,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "pickle-untrusted-payload": "dequeue 对队列原始字节直接 pickle.loads，反序列化即执行代码",
+      "unbounded-retry": "run_with_retry 无限重试且无退避，失败任务永久占用 worker",
+      "broad-except-swallow": "run_once 捕获 Exception 后只记日志，任务静默丢失且状态停留 running",
+      "no-task-timeout": "任务同步执行且无超时，handler 阻塞会永久占住 worker",
+      "sensitive-payload-logging": "log_task 原样打印整个任务对象，payload 内容全量落日志",
+      "task-state-race": "set_status 读-改-写非原子，同一任务被多方更新时会丢失更新"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "dequeue 对队列原始字节直接 pickle.loads，反序列化即执行代码",
+        "file": "worker/queue.py",
+        "line": 29,
+        "defect_id": "pickle-untrusted-payload",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "run_with_retry 无限重试且无退避，失败任务永久占用 worker",
+        "file": "worker/retry.py",
+        "line": 21,
+        "defect_id": "unbounded-retry",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "run_once 捕获 Exception 后只记日志，任务静默丢失且状态停留 running",
+        "file": "worker/runner.py",
+        "line": 46,
+        "defect_id": "broad-except-swallow",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "任务 payload 未做结构与类型校验，畸形消息直接 KeyError 后被吞掉",
+        "file": "worker/runner.py",
+        "line": 0,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 4,
+        "title": "任务同步执行且无超时，handler 阻塞会永久占住 worker",
+        "file": "worker/runner.py",
+        "line": 31,
+        "defect_id": "no-task-timeout",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "log_task 原样打印整个任务对象，payload 内容全量落日志",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "sensitive-payload-logging",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "_QUEUE 无容量上限，堆积时内存无界增长且无背压",
+        "file": "worker/queue.py",
+        "line": 10,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 7,
+        "title": "set_status 读-改-写非原子，同一任务被多方更新时会丢失更新",
+        "file": "worker/queue.py",
+        "line": 38,
+        "defect_id": "task-state-race",
+        "match": "line"
+      },
+      {
+        "index": 8,
+        "title": "should_retry 逻辑恒为真且在本包内无调用点",
+        "file": "worker/retry.py",
+        "line": 12,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 9,
+        "title": "settings 中的常量在 worker 包内无消费点，配置不生效",
+        "file": "worker/settings.py",
+        "line": 11,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "dequeue 对队列原始字节直接 pickle.loads，反序列化即执行代码",
+      "description": "dequeue() 对从 _QUEUE 取出的原始字节直接调用 pickle.loads，没有任何来源校验或类型白名单。pickle 反序列化会调用 payload 中声明的 __reduce__/__setstate__ 等钩子，因此任何被放入该队列的字节序列都等价于在 worker 进程内执行代码，可获得与 worker 相同权限。代码本身（loads 未做校验）在本仓库内即成立；本仓库的 _QUEUE 是进程内 queue.Queue()，跨进程/网络边界需由调用方确认，但 README 已把“pickle 反序列化不可信数据”声明为刻意缺陷，说明该队列被设计为承载外部数据，风险成立。",
+      "file": "worker/queue.py",
+      "line": 29,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "首选把消息格式改为纯数据（json 或 msgpack），handler 名只作为字符串保存，再由本地白名单解析为函数，不要传递可执行对象。若因兼容必须使用 pickle，则在 loads 之前先校验 HMAC：dequeue 侧 `sig, payload = raw[:32], raw[32:]`，用固定密钥 `hmac.compare_digest(sig, hmac.new(KEY, payload, sha256).digest())`，校验失败立即丢弃任务并记 warning，不进入 loads；KEY 从环境变量/密钥管理服务读取并支持轮换，同时给消息加唯一 message_id 与时间戳以防重放。",
+      "evidence": "queue.py:21-29 中 `def dequeue(): ... raw = _QUEUE.get(); return pickle.loads(raw)`；文件头注释写明该缺陷为 README 中刻意保留项。",
+      "confidence": 0.95,
+      "source": "reflection"
+    },
+    {
+      "title": "run_with_retry 无限重试且无退避，失败任务永久占用 worker",
+      "description": "run_with_retry 使用 `while True` 包住 `try: return handler(task)` 与 `except Exception: continue`，没有重试次数上限、没有退避/抖动，也不区分可重试与不可重试异常。对 KeyError、TypeError 这类永远不会成功的错误，循环会以紧循环方式立即重跑，占满单核 CPU 并持续冲击下游依赖，同时该 worker 因无法返回而永久停留在这一任务上；与 runner.execute 无超时（见下一条）叠加后，进程实际失去处理后续任务的能力，属于可用性/DoS 级缺陷。",
+      "file": "worker/retry.py",
+      "line": 21,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "为每此任务维护 attempts 计数并设 max_attempts 上限：`for attempt in range(MAX_ATTEMPTS): try: return handler(task) except RETRYABLE as exc: time.sleep(min(base * 2 ** attempt, cap) + random.uniform(0, jitter))`；超出上限抛出异常交给上层标记 failed/入死信队列；仅对明确的瞬态异常（超时、连接错误）重试。对可能产生副作用的 handler，建议同时在任务上带幂等键/去重键，避免重复执行产生重复写库、重复扣款等一致性问题。",
+      "evidence": "retry.py:21-25 `while True:\\n    try:\\n        return handler(task)\\n    except Exception:\\n        continue`；同文件 should_retry 未被该循环调用。",
+      "confidence": 0.95,
+      "source": "reflection"
+    },
+    {
+      "title": "run_once 捕获 Exception 后只记日志，任务静默丢失且状态停留 running",
+      "description": "run_once() 的 `except Exception as exc:` 分支只调用 logger.warning 记录一条消息，既不重新抛出，也不把任务状态置为 failed，不记录失败原因与堆栈。此时任务已从队列 dequeue 移除，调用方拿不到任何失败信号，任务永久丢失；若 execute 内部已把状态设为 running，该状态会一直悬挂，监控与重试都无法感知。相比无限重试，这一分支是把失败“消音”，是任务丢失的直接原因。建议优先于其它可维护性问题修复。",
+      "file": "worker/runner.py",
+      "line": 46,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "在 except 分支中显式落库失败状态并保留可诊断信息：`except Exception as exc: set_status(task.get(\"id\"), \"failed\"); logger.warning(\"任务执行失败 id=%s: %s\", task.get(\"id\"), exc, exc_info=True); raise`（或投递到死信队列）。落地死信队列的可行方式：先把任务以 `failed_at`、`error_type`、`error_msg` 三个字段写入一张 failed_tasks 表/队列，再由独立的补偿任务消费，避免失败信息只存在于日志里。",
+      "evidence": "runner.py:42-47 `try:\\n    return execute(task)\\nexcept Exception as exc:\\n    logger.warning(\"任务执行失败：%s\", exc)`，函数末尾无显式 return，异常路径返回 None。",
+      "confidence": 0.95,
+      "source": "reflection"
+    },
+    {
+      "title": "任务 payload 未做结构与类型校验，畸形消息直接 KeyError 后被吞掉",
+      "description": "execute 直接对入参做下标取值（task[\"id\"]、task[\"handler\"]），没有任何“是否为 dict、必填字段是否存在、字段类型是否合法”的前置校验。当队列中出现缺字段、字段类型错误或非 dict 的消息时，会抛出 KeyError/TypeError；该异常被 run_once 的兜底 except 捕获并只记日志，结果是任务被静默丢弃且没有任何结构性告警，运维无法区分“业务失败”与“消息格式非法”。行号因 execute 内部多行紧凑写法无法唯一定位，故填 0，位置见 evidence 引用。",
+      "file": "worker/runner.py",
+      "line": 0,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在 execute 入口处做一次显式校验并给出可区分的结果：`if not isinstance(task, dict) or not isinstance(task.get(\"id\"), (str, int)) or not isinstance(task.get(\"handler\"), str): set_status(task.get(\"id\") if isinstance(task, dict) else None, \"invalid\"); logger.error(\"非法任务消息: %r\", task); return`，再补充 handler 是否在允许列表内的校验。配合上一条的失败落库，可把“格式非法”单独计为 invalid 状态，便于监控告警。",
+      "evidence": "runner.py execute() 中 `set_status(task[\"id\"], \"running\"); handler = task[\"handler\"]` 直接下标取值，函数体内未见任何 isinstance/字段存在性检查；失败路径由 runner.py:46 的 `except Exception` 兜底。",
+      "confidence": 0.75,
+      "source": "reflection"
+    },
+    {
+      "title": "任务同步执行且无超时，handler 阻塞会永久占住 worker",
+      "description": "execute() 同步调用 run_with_retry(task, handler)，没有任何超时、看门狗或可中断机制。若 handler 因网络挂起、死锁或死循环而不返回，调用线程会一直被占用，队列后续任务得不到处理；该问题与 run_with_retry 的无限重试叠加时互相放大，但修复点不同（这里是缺少执行时限，那里是缺少重试上限），需分别处理。",
+      "file": "worker/runner.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "给任务加上执行时限，例如把 handler 提交到 `concurrent.futures.ThreadPoolExecutor` 后 `future.result(timeout=TASK_TIMEOUT)`，捕获 FuturesTimeoutError 后将任务标记为 timeout/failed 并释放 worker；对确实需要强杀的任务改用子进程（multiprocessing）执行以便 terminate。同时给下游网络调用设置 socket/HTTP 级 timeout，避免只靠外层兜底。",
+      "evidence": "runner.py:23-33 中 `set_status(task[\"id\"], \"running\"); handler = task[\"handler\"]; result = run_with_retry(task, handler); set_status(task[\"id\"], \"done\")`，全程无 timeout 参数或计时逻辑。",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "log_task 原样打印整个任务对象，payload 内容全量落日志",
+      "description": "log_task() 用 `logger.info(\"开始处理任务：%s\", task)` 输出完整任务字典，payload 中的全部字段都会进入日志，且每次执行前都会调用。未在本仓库中找到 payload 含口令/token 的样例，也确认 settings.LOG_LEVEL 并未真正作用于 logger，因此本条的确定性事实是“payload 全量写入 INFO 日志、暴露面等于日志读取权限”，是否构成凭据泄露取决于调用方实际投递的 payload 内容，故按中危记录而非高危。行号对应关系：log_task 函数体位于 runner.py:14-20，logger.info 这一行是 20，title 的 line 20 即该语句。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "只记录定位所需字段：`logger.info(\"开始处理任务：id=%s handler=%s\", task.get(\"id\"), task.get(\"handler\"))`；确需记录 payload 时走白名单脱敏函数，例如 `{k: (\"***\" if k in SENSITIVE_KEYS else v) for k, v in payload.items()}`。为避免后续新增日志语句再次泄漏，可注册 `logging.Filter` 在 emit 前统一清洗 message args，并补一条断言“日志中不含敏感字段值”的单元测试。",
+      "evidence": "runner.py:14-20 `def log_task(task): ... logger.info(\"开始处理任务：%s\", task)`；runner.py:43 `log_task(task)` 在每次执行前调用。",
+      "confidence": 0.85,
+      "source": "reflection"
+    },
+    {
+      "title": "_QUEUE 无容量上限，堆积时内存无界增长且无背压",
+      "description": "_QUEUE 使用默认构造的 queue.Queue()，maxsize 为 0 即无界队列，enqueue 中的 put 也未带 timeout。当生产速率长期高于消费速率（失败重试导致消费停滞会直接触发这种情况）时，待处理任务会在内存中持续堆积，最终可能 OOM；同时生产者永远感知不到积压，背压缺失使过载不可观测。未取得任务平均大小与生产速率的量化数据，故按明显性能问题记为中危，不按数据损坏类高危处理。",
+      "file": "worker/queue.py",
+      "line": 10,
+      "severity": "medium",
+      "category": "performance",
+      "suggestion": "显式设置容量并让背压可见：`_QUEUE = queue.Queue(maxsize=QUEUE_MAXSIZE)`，enqueue 用 `_QUEUE.put(blob, block=True, timeout=ENQUEUE_TIMEOUT)` 并捕获 `queue.Full` 返回明确的拒绝信号（或抛自定义 QueueFullError）给生产者；对不能丢的任务落盘或改用支持持久化与积压监控的 broker（如 Redis/Kafka），并暴露 queue.qsize() 指标用于告警。",
+      "evidence": "queue.py:10 `_QUEUE: \"queue.Queue[bytes]\" = queue.Queue()`；enqueue 中 `_QUEUE.put(pickle.dumps(task))` 未传 maxsize 相关参数或 timeout。",
+      "confidence": 0.8,
+      "source": "reflection"
+    },
+    {
+      "title": "set_status 读-改-写非原子，同一任务被多方更新时会丢失更新",
+      "description": "set_status() 是 `current = _STATUS.get(task_id, \"pending\"); _STATUS[task_id] = status; return current` 的非原子读改写，模块内没有引入任何锁。仅当同一 task_id 被两个以上执行者（多线程或多进程）同时更新时才会发生覆盖写，导致最终状态与真实结果不符、返回值也可能不是紧邻的真实旧值；本次审查在 worker 包中未发现启动多 worker/多线程的调用路径（settings.WORKER_CONCURRENCY 也未被消费），因此这是接口层面的原子性缺陷，尚未确认存在实际并发触发场景，故记为低危。",
+      "file": "worker/queue.py",
+      "line": 38,
+      "severity": "low",
+      "category": "bug",
+      "suggestion": "若后续确定并发执行，则用锁包住整个读改写：`with _STATUS_LOCK: prev = _STATUS.get(task_id, \"pending\"); _STATUS[task_id] = status; return prev`；若状态表要跨进程共享，改为 Redis 的原子操作或数据库 `UPDATE ... WHERE version = ?` 的 compare-and-swap，并对版本冲突做重试。",
+      "evidence": "queue.py:32-40 `current = _STATUS.get(task_id, \"pending\"); _STATUS[task_id] = status; return current`，整个模块文件内无 threading.Lock 等同步原语。",
+      "confidence": 0.8,
+      "source": "reflection"
+    },
+    {
+      "title": "should_retry 逻辑恒为真且在本包内无调用点",
+      "description": "should_retry() 返回 `attempts >= 0`，对任何合法的非负 attempts 都恒为 True，等于永远建议重试；在本次实际读取的 worker 包文件（queue.py、runner.py、retry.py、tasks.py、settings.py、__init__.py）中除该定义处外未见任何引用，run_with_retry 也未调用它。它会让维护者误以为已有重试上限策略，从而掩盖 run_with_retry 的无限重试缺陷。此结论限定在上述已读取文件范围内（未附全仓检索工具原始输出）。",
+      "file": "worker/retry.py",
+      "line": 12,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "删除该函数，或让它真正参与决策并与常量对齐：`MAX_ATTEMPTS = 3`，`def should_retry(attempts): return attempts < MAX_ATTEMPTS`，在 run_with_retry 的循环条件与异常分支中调用它；同时补一条单元测试锁定 attempts = MAX_ATTEMPTS-1 / MAX_ATTEMPTS 两个边界。",
+      "evidence": "retry.py:7-12 `def should_retry(attempts): ... return attempts >= 0`；retry.py 的 run_with_retry 循环为 `while True`，未引用该函数。",
+      "confidence": 0.7,
+      "source": "reflection"
+    },
+    {
+      "title": "settings 中的常量在 worker 包内无消费点，配置不生效",
+      "description": "settings.py 定义了 QUEUE_NAME、LOG_LEVEL、WORKER_CONCURRENCY，但在本次读取的 worker 包源码中未见任何消费点：queue.py 用的是模块级 _QUEUE 而非按 QUEUE_NAME 选队列，日志级别从未被设置（因而不存在 logger.setLevel(LOG_LEVEL)），并发度也没有被用于启动任何线程/进程池。__init__.py 的 __all__ 只是导出声明，不构成运行期使用。结果是运维修改配置后行为不变，属于配置与实现脱节。行号对应关系：常量块位于 settings.py:8-14，title 的 line 11 即其中的 LOG_LEVEL 定义行。",
+      "file": "worker/settings.py",
+      "line": 11,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "在入口处真正消费这些配置：`logging.getLogger(__name__).setLevel(settings.LOG_LEVEL)`、按 `settings.WORKER_CONCURRENCY` 启动线程/进程池、在 enqueue/dequeue 处按 `settings.QUEUE_NAME` 选择队列；若确实不需要，则删除常量并同步更新 README，避免出现“改了没生效”的运维困惑。",
+      "evidence": "settings.py:8-14 定义 `QUEUE_NAME = \"default\"` / `LOG_LEVEL = \"INFO\"` / `WORKER_CONCURRENCY = 4`；queue.py 使用 `_QUEUE: \"queue.Queue[bytes]\" = queue.Queue()` 与名称常量无关联，runner.py/retry.py 中未见对这些常量的引用，__init__.py 仅将其列入 __all__。",
+      "confidence": 0.7,
+      "source": "reflection"
+    }
+  ]
+}

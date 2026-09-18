@@ -1,0 +1,63 @@
+"""上下文工程层：GSSC 上下文构建与压缩。"""
+
+from codeagentx.context.builder import (
+    STAGE_COMPRESS,
+    STAGE_GATHER,
+    STAGE_SELECT,
+    STAGE_STRUCTURE,
+    STAGES,
+    UNTRUSTED_NOTICE,
+    ContextBuilder,
+    GitHubSource,
+    build_context_builder,
+    document_from_retrieved,
+    documents_from_github,
+    github_file_to_document,
+)
+from codeagentx.context.compressor import (
+    CompressionReport,
+    ContextCompressor,
+    LevelReport,
+)
+from codeagentx.context.schemas import (
+    SECTION_CONSTRAINTS,
+    SECTION_EVIDENCE,
+    SECTION_TASK,
+    BuiltContext,
+    ContextDocument,
+    ContextSection,
+    ContextStats,
+    StageStat,
+    document_identity,
+    estimate_documents_tokens,
+    estimate_sections_tokens,
+)
+
+__all__ = [
+    "SECTION_CONSTRAINTS",
+    "SECTION_EVIDENCE",
+    "SECTION_TASK",
+    "STAGES",
+    "STAGE_COMPRESS",
+    "STAGE_GATHER",
+    "STAGE_SELECT",
+    "STAGE_STRUCTURE",
+    "UNTRUSTED_NOTICE",
+    "BuiltContext",
+    "CompressionReport",
+    "ContextBuilder",
+    "ContextCompressor",
+    "ContextDocument",
+    "ContextSection",
+    "ContextStats",
+    "GitHubSource",
+    "LevelReport",
+    "StageStat",
+    "build_context_builder",
+    "document_from_retrieved",
+    "documents_from_github",
+    "document_identity",
+    "estimate_documents_tokens",
+    "estimate_sections_tokens",
+    "github_file_to_document",
+]

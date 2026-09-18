@@ -1,0 +1,153 @@
+{
+  "dataset": "url_shortener",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/url_shortener/target",
+  "valid": true,
+  "seconds": 22.233,
+  "usage": {
+    "calls": 3,
+    "failed_calls": 0,
+    "prompt_tokens": 11009,
+    "completion_tokens": 4918,
+    "total_tokens": 15927,
+    "latency": 20.829
+  },
+  "cost": {
+    "total_tokens": 15927,
+    "tokens_per_finding": 3185.4
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "url_shortener",
+    "target": "data/evaluation/url_shortener/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 5,
+      "true_positives": 5,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "labeled_defects": 5
+    },
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "open-redirect": "跳转接口未做目标域名白名单校验，存在开放重定向",
+      "ssrf-preview-fetch": "链接预览按用户传入 URL 抓取，未拦截内网地址（SSRF）",
+      "predictable-short-code": "短码由自增计数器生成，可预测、可枚举他人短链",
+      "missing-scheme-validation": "URL 校验只判非空，危险 scheme 可绕过",
+      "unauth-stats-endpoint": "统计接口无任何鉴权，任意调用者可获取全站数据"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "跳转接口未做目标域名白名单校验，存在开放重定向",
+        "file": "app/api.py",
+        "line": 26,
+        "defect_id": "open-redirect",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "链接预览按用户传入 URL 抓取，未拦截内网地址（SSRF）",
+        "file": "app/preview.py",
+        "line": 31,
+        "defect_id": "ssrf-preview-fetch",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "短码由自增计数器生成，可预测、可枚举他人短链",
+        "file": "app/shortener.py",
+        "line": 35,
+        "defect_id": "predictable-short-code",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "URL 校验只判非空，危险 scheme 可绕过",
+        "file": "app/validators.py",
+        "line": 17,
+        "defect_id": "missing-scheme-validation",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "统计接口无任何鉴权，任意调用者可获取全站数据",
+        "file": "app/api.py",
+        "line": 31,
+        "defect_id": "unauth-stats-endpoint",
+        "match": "line"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "跳转接口未做目标域名白名单校验，存在开放重定向",
+      "description": "redirect() 直接取存储中的目标地址并拼进 302 响应的 location，既不校验目标域名白名单，也不校验协议，甚至不判断 code 是否存在（不存在时 target 为 None 仍返回 302）。由于 create_link 允许任意 URL 入池，攻击者可生成指向钓鱼站或 javascript: 的短链，借本站可信域名诱导用户点击，形成开放重定向 / 钓鱼跳板。",
+      "file": "app/api.py",
+      "line": 26,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "跳转前校验目标：1) 协议必须在 ALLOWED_SCHEMES 内；2) 解析 urlparse(target).hostname 并与可信域名白名单比对，不在白名单则返回 400/403 或跳转到站内提示页；3) target 为 None 时返回 404，不要返回 302。示例：if target is None: return {\"status\": 404}; if urlparse(target).hostname not in TRUSTED_HOSTS: return {\"status\": 403}。",
+      "evidence": "app/api.py:26-28\n    target = store.get(code)\n    store.record_hit(code)\n    return {\"status\": 302, \"location\": target}",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "链接预览按用户传入 URL 抓取，未拦截内网地址（SSRF）",
+      "description": "fetch_title() 把用户可控的 url 直接交给 _http_get()（注释说明此处等价于真实 HTTP 请求）发起服务端请求，既没有校验协议，也没有拦截 127.0.0.1、169.254.169.254（云元数据）、10/172.16/192.168 等内网网段，也没有做 DNS 解析后的二次校验或重定向跟随限制。攻击者可通过 /preview?url=... 探测内网服务、读取云实例元数据凭证，形成 SSRF。",
+      "file": "app/preview.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在发起请求前做校验：只允许 http/https；用 socket.getaddrinfo 解析域名并对解析出的所有 IP 用 ipaddress 判断是否属于 is_private / is_loopback / is_link_local / is_reserved，命中即拒绝；请求时禁用或手工处理重定向并逐跳复检；生产环境再叠加出网代理白名单与超时限制。",
+      "evidence": "app/preview.py:31-32\n    html = _http_get(url)\n    return _extract_title(html)\n\napp/preview.py:7-12 def _http_get(url) → \"此处等价于一次 HTTP 请求（如 requests.get(url)）\"",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "短码由自增计数器生成，可预测、可枚举他人短链",
+      "description": "next_code() 直接对全局 _counter 做 base36 转换（0→a、1→b……顺序递增），生成的短码完全可预测。任何人按顺序遍历 a、b、c…… 即可枚举出全站短链，进而读取他人创建的链接与点击数据，且不同实例/重启后序列重复会导致短码碰撞覆盖已有链接（store.save 直接覆盖）。",
+      "file": "app/shortener.py",
+      "line": 35,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "改用密码学安全随机源生成短码，长度至少 6~8 位，并在写入前做唯一性校验，例如：secrets.choice(ALPHABET) 生成后 while store.exists(code): 重新生成；若必须抗碰撞，可配合数据库唯一索引 + 冲突重试。示例：code = ''.join(secrets.choice(ALPHABET) for _ in range(8))。",
+      "evidence": "app/shortener.py:34-37\n    global _counter\n    code = _to_base36(_counter)\n    _counter += 1\n    return code\n\napp/store.py:13-16 def save(code, url): _LINKS[code] = url（直接覆盖，无碰撞检测）",
+      "confidence": 0.92,
+      "source": "react"
+    },
+    {
+      "title": "URL 校验只判非空，危险 scheme 可绕过",
+      "description": "is_valid_url() 只检查 isinstance(url, str) and len(url) > 0，模块里已定义 ALLOWED_SCHEMES 却从未使用。因此 javascript:alert(1)、data:text/html,...、file:///etc/passwd 等危险 scheme 都能通过校验并被存为短链；结合 api.redirect 未校验协议，返回 302 location 为 javascript: 时可在受害者浏览器执行脚本，构成 XSS。另外全空白字符串 \"   \" 也会被判定为合法，而 normalize() 只做 strip 且未被调用。",
+      "file": "app/validators.py",
+      "line": 17,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "用白名单 + 解析校验：u = normalize(url) 后 return isinstance(u, str) and u.startswith(ALLOWED_SCHEMES) 并确保解析出的 hostname 非空（更稳妥用 urlparse(u).scheme in {\"http\",\"https\"} and urlparse(u).netloc）。同时让 create_link 保存 normalize 后的 URL，保证校验与存储的是同一份字符串。",
+      "evidence": "app/validators.py:7 ALLOWED_SCHEMES = (\"http://\", \"https://\")\napp/validators.py:10-17\n    return isinstance(url, str) and len(url) > 0（ALLOWED_SCHEMES 未被引用）",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "统计接口无任何鉴权，任意调用者可获取全站数据",
+      "description": "stats() 没有校验登录态、API key 或任何权限来源，request 参数甚至完全没有被使用，任何匿名调用者请求 /stats 即可拿到全站短链总数与累计点击数，造成业务数据泄露与信息收集（可配合短码枚举进一步放大影响）。",
+      "file": "app/api.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在接口层加入鉴权：校验 Authorization / API key 或管理员会话，未通过返回 401/403；仅在确需公开时改为返回脱敏的聚合指标。示例：if not is_admin(request): return {\"status\": 401, \"message\": \"未授权\"}。",
+      "evidence": "app/api.py:31-40\n    def stats(request):\n        return {\n            \"links\": len(store.all_links()),\n            \"hits\": store.total_hits(),\n        }（request 参数未被使用，无任何鉴权判断）",
+      "confidence": 0.95,
+      "source": "react"
+    }
+  ]
+}

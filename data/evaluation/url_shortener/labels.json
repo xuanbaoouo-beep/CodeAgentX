@@ -1,0 +1,70 @@
+{
+  "dataset": "url_shortener",
+  "target": "data/evaluation/url_shortener/target",
+  "language": "python",
+  "file_count": 7,
+  "file_count_note": "共 7 个文件 = 6 个 Python 源文件（app/__init__.py、api.py、store.py、shortener.py、validators.py、preview.py）+ README.md；缺陷只分布在 shortener.py、api.py、preview.py、validators.py 这 4 个文件里",
+  "provenance": {
+    "source": "data/evaluation/url_shortener/target/README.md「请勿修好这里的缺陷」表——缺陷是被刻意植入并被文档记录的，属于构造性 ground truth",
+    "line_numbers": "由人工逐条核对源码后定位（2026-09-17）",
+    "policy": "严格只收录该表列出的 5 条。README 或代码注释里顺带提到的其它内容不计入 ground truth——否则就成了把模型事后发现的问题补进标签，那是对评测结果的污染",
+    "line_semantics": "line/line_end 表示缺陷所在的代码区间：缺失型缺陷（该做而没做，如没有鉴权、没有白名单校验）标整个函数体，单点缺陷标该语句所在行"
+  },
+  "defects": [
+    {
+      "id": "predictable-short-code",
+      "title": "短码由自增计数器生成，可被枚举遍历他人短链",
+      "file": "app/shortener.py",
+      "line": 28,
+      "line_end": 37,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 1,
+      "keywords": ["短码", "自增", "计数器", "枚举", "可预测", "next_code"]
+    },
+    {
+      "id": "open-redirect",
+      "title": "跳转前不校验目标域名白名单（开放重定向）",
+      "file": "app/api.py",
+      "line": 20,
+      "line_end": 28,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 2,
+      "keywords": ["开放重定向", "重定向", "白名单", "跳转", "钓鱼", "location"]
+    },
+    {
+      "id": "ssrf-preview-fetch",
+      "title": "按用户传入 URL 抓取预览，未拦截内网地址（SSRF）",
+      "file": "app/preview.py",
+      "line": 24,
+      "line_end": 32,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 3,
+      "keywords": ["SSRF", "内网", "127.0.0.1", "169.254.169.254", "抓取", "fetch_title"]
+    },
+    {
+      "id": "missing-scheme-validation",
+      "title": "只检查字符串非空就当作合法 URL，不校验协议",
+      "file": "app/validators.py",
+      "line": 10,
+      "line_end": 17,
+      "severity": "medium",
+      "category": "bug",
+      "readme_row": 4,
+      "keywords": ["协议", "scheme", "校验", "javascript:", "file:", "ALLOWED_SCHEMES"]
+    },
+    {
+      "id": "unauth-stats-endpoint",
+      "title": "统计接口无任何鉴权，任意调用者可拿全站数据",
+      "file": "app/api.py",
+      "line": 31,
+      "line_end": 40,
+      "severity": "medium",
+      "category": "security",
+      "readme_row": 5,
+      "keywords": ["鉴权", "未授权", "认证", "stats", "全站", "接口"]
+    }
+  ]
+}

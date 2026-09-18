@@ -1,0 +1,175 @@
+{
+  "dataset": "config_loader",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/config_loader/target",
+  "valid": true,
+  "seconds": 14.348,
+  "usage": {
+    "calls": 3,
+    "failed_calls": 0,
+    "prompt_tokens": 10006,
+    "completion_tokens": 3325,
+    "total_tokens": 13331,
+    "latency": 13.125
+  },
+  "cost": {
+    "total_tokens": 13331,
+    "tokens_per_finding": 2221.8
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "config_loader",
+    "target": "data/evaluation/config_loader/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 6,
+      "true_positives": 5,
+      "false_positives": 1,
+      "false_negatives": 1,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.8333,
+      "recall": 0.8333,
+      "f1": 0.8333,
+      "false_positive_rate": 0.1667,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "eval-config-value": "用 eval() 解析配置值导致任意代码执行",
+      "sensitive-value-logging": "加载配置时把整份配置（含口令/密钥）写入日志",
+      "no-type-validation": "内置默认管理员口令 admin123 静默生效",
+      "cache-key-ignores-source": "缓存键只用文件名，多环境配置互相串味",
+      "silent-default-on-error": "读取失败静默回退默认配置，不抛错也不告警"
+    },
+    "missed": [
+      "default-admin-password"
+    ],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "用 eval() 解析配置值导致任意代码执行",
+        "file": "configlib/loader.py",
+        "line": 19,
+        "defect_id": "eval-config-value",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "加载配置时把整份配置（含口令/密钥）写入日志",
+        "file": "configlib/loader.py",
+        "line": 30,
+        "defect_id": "sensitive-value-logging",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "内置默认管理员口令 admin123 静默生效",
+        "file": "configlib/schema.py",
+        "line": 25,
+        "defect_id": "no-type-validation",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "配置值不做类型校验，错误延后引爆",
+        "file": "configlib/schema.py",
+        "line": 34,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 4,
+        "title": "缓存键只用文件名，多环境配置互相串味",
+        "file": "configlib/cache.py",
+        "line": 18,
+        "defect_id": "cache-key-ignores-source",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "读取失败静默回退默认配置，不抛错也不告警",
+        "file": "configlib/sources.py",
+        "line": 26,
+        "defect_id": "silent-default-on-error",
+        "match": "line"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "用 eval() 解析配置值导致任意代码执行",
+      "description": "parse_value 直接对配置原始字符串调用 eval()。配置来源（文件/配置中心）一旦被写入或被篡改，例如值写成 \"__import__('os').system('id')\"，加载配置时即在本进程内执行任意代码，属于典型的代码注入漏洞，可导致命令执行、数据泄露或服务被完全接管。",
+      "file": "configlib/loader.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用 JSON 原生解析替代 eval，例如 import json 后 return json.loads(raw)；若需支持 None/True 等字面量，用 json.loads 并提供受限的解析表，禁止任何形式的 eval/exec。",
+      "evidence": "def parse_value(raw):\n    ...\n    return eval(raw)  # configlib/loader.py:19",
+      "confidence": 0.98,
+      "source": "react"
+    },
+    {
+      "title": "加载配置时把整份配置（含口令/密钥）写入日志",
+      "description": "load_config 在成功加载后执行 logger.info(\"已加载配置 %s: %s\", name, config)，config 中含 password / secret_key / admin_password 等敏感项。任何能读取日志的人（运维、日志采集平台、集中式日志系统）都能拿到明文凭据，造成凭据泄露。",
+      "file": "configlib/loader.py",
+      "line": 30,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "只记录非敏感元信息（如配置名、键数量），或对敏感键做掩码，例如：safe = {k: ('***' if 'password' in k or 'secret' in k else v) for k, v in config.items()}；同时将日志级别调到 debug 并默认不输出配置值。",
+      "evidence": "logger.info(\"已加载配置 %s: %s\", name, config)  # configlib/loader.py:30，docstring 亦称“把整份配置（含 password / secret_key 等敏感项）原样写进日志”",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "内置默认管理员口令 admin123 静默生效",
+      "description": "get_admin_password 在配置缺少 admin_password 时返回硬编码的 DEFAULT_ADMIN_PASSWORD = \"admin123\"（configlib/schema.py:7），且无任何告警。部署方若漏配口令，线上会静默使用人人皆知的弱口令，等同于预留后门。",
+      "file": "configlib/schema.py",
+      "line": 25,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "移除内置默认口令；缺少 admin_password 时直接抛配置错误（如 raise ValueError(\"admin_password 未配置\")），强制部署方显式提供；如确需默认值，也应生成随机口令并在启动时告警。",
+      "evidence": "DEFAULT_ADMIN_PASSWORD = \"admin123\"  # schema.py:7\ndef get_admin_password(config):\n    return config.get(\"admin_password\", DEFAULT_ADMIN_PASSWORD)  # schema.py:25",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "配置值不做类型校验，错误延后引爆",
+      "description": "coerce 只判断键是否存在，从不依据 EXPECTED_TYPES 做类型校验或转换，port=\"abc\" 这类错误值被原样带入后续代码，报错点远离真正的配置错误，排障困难。",
+      "file": "configlib/schema.py",
+      "line": 34,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在 coerce 中按 EXPECTED_TYPES 做类型校验与转换，例如对 int 项尝试 int(value) 并在失败时抛出带键名的明确异常：\nfor key, typ in EXPECTED_TYPES.items():\n    if key in config:\n        try: result[key] = typ(config[key])\n        except (TypeError, ValueError) as exc: raise ValueError(f\"配置项 {key} 类型错误: {config[key]!r}\") from exc",
+      "evidence": "def coerce(config):\n    result = {}\n    for key in EXPECTED_TYPES:\n        if key in config:\n            result[key] = config[key]  # 无类型校验/转换  configlib/schema.py:34-38",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "缓存键只用文件名，多环境配置互相串味",
+      "description": "cache_key 直接返回文件名，不含来源/环境（dev/prod、不同配置中心）。同一进程先后加载不同环境的同名配置时会命中错误缓存，prod 进程可能持续使用 dev 配置，造成环境配置错乱。",
+      "file": "configlib/cache.py",
+      "line": 18,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "将来源/环境纳入缓存键，例如 return \"%s:%s\" % (env, filename)，或在 get_cached 中显式接收 env/source 参数并组成元组键 _CACHE[(env, name)]，同时提供按环境失效缓存的接口。",
+      "evidence": "def cache_key(filename):\n    ...\n    return filename  # configlib/cache.py:18（docstring：键只用文件名，不含来源/环境）",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "读取失败静默回退默认配置，不抛错也不告警",
+      "description": "read_source 捕获 OSError/ValueError 后直接返回 dict(FALLBACK_CONFIG)，既不抛异常也不记日志。配置文件缺失或 JSON 写错时，服务会用默认配置悄悄启动，问题被掩盖到运行期才暴露，且默认值可能与生产预期不符（如 debug=False、port=8080）。",
+      "file": "configlib/sources.py",
+      "line": 26,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "回退前至少记录 error 级日志并告警，例如 logger.error(\"读取配置 %s 失败，使用兜底配置\", path, exc_info=True)；更稳妥的是直接抛出异常或由调用方决定是否容忍回退，避免静默降级。",
+      "evidence": "except (OSError, ValueError):\n    return dict(FALLBACK_CONFIG)  # configlib/sources.py:25-26",
+      "confidence": 0.9,
+      "source": "react"
+    }
+  ]
+}

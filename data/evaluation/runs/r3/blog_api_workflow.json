@@ -1,0 +1,364 @@
+{
+  "dataset": "blog_api",
+  "protocol": "workflow",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/blog_api/target",
+  "valid": true,
+  "seconds": 100.183,
+  "usage": {
+    "calls": 13,
+    "failed_calls": 0,
+    "prompt_tokens": 99210,
+    "completion_tokens": 16871,
+    "total_tokens": 116081,
+    "latency": 72.417,
+    "llm_usage": {
+      "calls": 13,
+      "failed_calls": 0,
+      "prompt_tokens": 99210,
+      "completion_tokens": 16871,
+      "total_tokens": 116081,
+      "latency": 72.417
+    }
+  },
+  "cost": {
+    "total_tokens": 116081,
+    "tokens_per_finding": 7738.7
+  },
+  "flags": {
+    "degraded": false
+  },
+  "judge": {},
+  "evaluation": {
+    "dataset": "blog_api",
+    "target": "data/evaluation/blog_api/target",
+    "protocol": "workflow",
+    "tolerance": 3,
+    "counts": {
+      "reported": 15,
+      "true_positives": 6,
+      "false_positives": 9,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.4,
+      "recall": 1.0,
+      "f1": 0.5714,
+      "false_positive_rate": 0.6,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-jwt-secret": "会话签名密钥硬编码且随登录响应下发",
+      "missing-admin-authz": "删帖接口完全没有鉴权与权限校验",
+      "sql-string-concat": "按标签查询用字符串拼接构造 SQL，存在注入风险",
+      "idor-delete-any-post": "业务层删除帖子不校验归属者，存在 IDOR 越权删除",
+      "plaintext-password-compare": "口令明文存储且用 == 明文比较，未哈希、非常量时间",
+      "unbounded-page-size": "请求参数 int() 转换无异常处理，非法输入直接崩溃"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "会话签名密钥硬编码且随登录响应下发",
+        "file": "app/api/auth.py",
+        "line": 11,
+        "defect_id": "hardcoded-jwt-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "删帖接口完全没有鉴权与权限校验",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "missing-admin-authz",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "删帖接口无任何鉴权，任何调用者都能删除任意帖子",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 3,
+        "title": "按标签查询用字符串拼接构造 SQL，存在注入风险",
+        "file": "app/db/store.py",
+        "line": 68,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "业务层删除帖子不校验归属者，存在 IDOR 越权删除",
+        "file": "app/services/post_service.py",
+        "line": 21,
+        "defect_id": "idor-delete-any-post",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "删帖不校验帖子归属者，requester 参数形同虚设",
+        "file": "app/services/post_service.py",
+        "line": 21,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 6,
+        "title": "口令明文存储且用 == 明文比较，未哈希、非常量时间",
+        "file": "app/api/auth.py",
+        "line": 31,
+        "defect_id": "plaintext-password-compare",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "请求参数 int() 转换无异常处理，非法输入直接崩溃",
+        "file": "app/api/posts.py",
+        "line": 29,
+        "defect_id": "unbounded-page-size",
+        "match": "line"
+      },
+      {
+        "index": 8,
+        "title": "page_size 无上限，可一次性构造超大响应",
+        "file": "app/api/posts.py",
+        "line": 30,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 9,
+        "title": "分页参数 page_size 不设上限且未做类型校验",
+        "file": "app/api/posts.py",
+        "line": 30,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 10,
+        "title": "page_size 为负数时切片语义错误，静默返回错误结果",
+        "file": "app/services/post_service.py",
+        "line": 13,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 11,
+        "title": "仓库缺少任何自动化测试",
+        "file": "README.md",
+        "line": 0,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 12,
+        "title": "令牌无过期机制，TOKEN_TTL_SECONDS 定义后从未使用",
+        "file": "app/api/auth.py",
+        "line": 14,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 13,
+        "title": "next_post_id 为死代码，insert_post 允许重复 id 静默覆盖",
+        "file": "app/db/store.py",
+        "line": 33,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 14,
+        "title": "build_tag_query 返回值被丢弃，成为无意义调用",
+        "file": "app/db/store.py",
+        "line": 73,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "会话签名密钥硬编码且随登录响应下发",
+      "description": "JWT/会话签名密钥以字面量形式写在源码中（JWT_SECRET = \"blog-api-demo-jwt-secret\"），并且 issue_token 在第 19 行用 f-string 把该密钥直接拼进返回给客户端的令牌（f\"{username}.{JWT_SECRET}\"）。触发条件：任何能读到仓库源码（含历史提交）或被泄漏的构建产物的人，都能自行构造任意用户名的合法令牌；同时每次调用 handle_login 成功登录的响应体中都会回显该密钥，等于把签名材料主动交给客户端。影响：认证体系被完全绕过（可伪造任意用户身份）。",
+      "file": "app/api/auth.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "密钥从环境变量/密钥管理服务读取并做启动期校验，禁止提交进仓库；令牌必须是签名摘要而非明文拼接密钥：\n\n  import os, hmac, hashlib, base64\n  JWT_SECRET = os.environ.get(\"JWT_SECRET\")\n  if not JWT_SECRET:\n      raise RuntimeError(\"JWT_SECRET 未配置\")\n\n  def issue_token(username, exp):\n      payload = base64.urlsafe_b64encode(f\"{username}|{exp}\".encode())\n      sig = hmac.new(JWT_SECRET.encode(), payload, hashlib.sha256).digest()\n      return payload + b\".\" + base64.urlsafe_b64encode(sig)\n\n同时轮换已泄漏的密钥，并补上令牌校验（当前代码库中不存在任何 verify_token 实现）。",
+      "evidence": "app/api/auth.py:11  JWT_SECRET = \"blog-api-demo-jwt-secret\"\napp/api/auth.py:17-19\n    def issue_token(username):\n        \"\"\"给指定用户签发会话令牌（演示用，不做真实 JWT 编码）。\"\"\"\n        return f\"{username}.{JWT_SECRET}\"",
+      "confidence": 0.98,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "删帖接口完全没有鉴权与权限校验",
+      "description": "handle_delete_post 从请求里只读取 post_id，既不校验调用方是否已登录（无 token/会话校验），也不校验是否为管理员或帖子作者，任何调用者只要给出 post_id 就能删除任意帖子，属于典型的缺失授权（broken access control）。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在路由层先做认证（校验令牌）与授权（requester 是 post.author 或 role == 'admin'），未认证返回 401、无权限返回 403，再把 requester 传给业务层做归属校验。",
+      "evidence": "app/api/posts.py:47-51  post_id = int(request.get(\"post_id\", 0))\\n    deleted = post_service.delete_post(post_id, requester=request.get(\"username\"))\\n    if not deleted:\\n        return {\"status\": 404, ...}\\n    return {\"status\": 200, \"body\": {\"deleted\": post_id}}",
+      "confidence": 0.97,
+      "source": "reviewer"
+    },
+    {
+      "title": "删帖接口无任何鉴权，任何调用者都能删除任意帖子",
+      "description": "handle_delete_post 直接读取请求字典中的 post_id 并调用 post_service.delete_post，全程没有校验调用方身份（既不校验是否已登录，也不校验是否为管理员或作者），传入的 requester（第 48 行 request.get(\"username\")）也未被用于任何判断。触发条件：任何外部调用者只需 POST/DELETE 携带 {\"post_id\": N} 即可删除 id 为 N 的帖子，返回 {\"status\": 200, \"body\": {\"deleted\": N}}。影响：未授权数据删除，属于典型的越权（broken access control）。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在路由层入口强制鉴权并做角色校验，例如：\n\n  def handle_delete_post(request):\n      actor = request.get(\"username\")\n      if not actor:\n          return {\"status\": 401, \"body\": {\"message\": \"未登录\"}}\n      if not is_admin(actor) and get_post_author(post_id) != actor:\n          return {\"status\": 403, \"body\": {\"message\": \"无权删除\"}}\n      ...\n\n并且不要信任 request 中的 username 字段，应从服务端校验过的会话令牌中解析身份。",
+      "evidence": "app/api/posts.py:47-51\n    post_id = int(request.get(\"post_id\", 0))\n    deleted = post_service.delete_post(post_id, requester=request.get(\"username\"))\n    if not deleted:\n        return {\"status\": 404, \"body\": {\"message\": \"帖子不存在\"}}\n    return {\"status\": 200, \"body\": {\"deleted\": post_id}}",
+      "confidence": 0.95,
+      "source": "security"
+    },
+    {
+      "title": "按标签查询用字符串拼接构造 SQL，存在注入风险",
+      "description": "build_tag_query 用 f-string 把外部输入 tag 直接拼进 SQL 文本（f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"）。数据流已确认可被攻击者控制：handle_list_posts_by_tag 取 request.get(\"tag\", \"\")（app/api/posts.py:37）→ post_service.list_posts_by_tag → store.filter_posts_by_tag → build_tag_query，全链路无任何过滤或转义。构造形如 tag = \"%' OR '1'='1\" 或 \"%'; DROP TABLE posts;--\" 的输入即可改变 SQL 语义。需要说明的是：在当前演示实现中 filter_posts_by_tag 丢弃了拼接结果（第 73 行仅调用不执行，真实筛选由内存列表完成），因此本仓库运行期不会真正执行注入；但该函数被明确定位为「真实项目交给数据库执行」的接口，一旦接入真实数据库驱动即成为可被外部利用的注入点，属于必须在下沉到数据访问层修正的缺陷。",
+      "file": "app/db/store.py",
+      "line": 68,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "一律使用参数化查询并把「模糊匹配」交给占位符，例如：\n\n  def build_tag_query(tag):\n      return (\"SELECT id, title, author FROM posts WHERE tags LIKE ?\", [f\"%{tag}%\"])\n\n调用方 cursor.execute(sql, params)。若因 LIKE 需要，可对 % 和 _ 做转义（ESCAPE 子句）；绝不要把用户输入拼进 SQL 文本。",
+      "evidence": "app/db/store.py:62-68\n    def build_tag_query(tag):\n        ...\n        return f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"\napp/db/store.py:71-73\n    def filter_posts_by_tag(tag):\n        \"\"\"按标签筛选帖子：真实项目会把 ``build_tag_query`` 的结果交给数据库执行。\"\"\"\n        build_tag_query(tag)  # 真实实现：拿这条 SQL 去执行\napp/api/posts.py:37  posts = post_service.list_posts_by_tag(request.get(\"tag\", \"\"))",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "业务层删除帖子不校验归属者，存在 IDOR 越权删除",
+      "description": "delete_post(post_id, requester=None) 接收了 requester 参数，但函数体内完全没有使用它：只做 store.get_post 存在性判断后直接调用 store.delete_post。触发条件：任何调用方只需提供一个存在的 post_id（如遍历 1..N 即可枚举全部帖子）就能删除他人的帖子，删帖记录不会与请求者身份做任何绑定。影响：水平越权（IDOR）导致他人数据被任意删除；由于该层是业务校验的最后一道防线，即使路由层将来加了登录校验，也仍然缺少归属者校验。",
+      "file": "app/services/post_service.py",
+      "line": 21,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在业务层补上归属者/角色校验，并让 requester 真正参与判断：\n\n  def delete_post(post_id, requester=None):\n      post = store.get_post(post_id)\n      if post is None:\n          return False\n      if requester is None or (post.author != requester and not is_admin(requester)):\n          raise PermissionError(\"无权删除该帖子\")\n      return store.delete_post(post_id)\n\n注意 requester 必须来自服务端已验证的会话，而不是客户端自报的字段。",
+      "evidence": "app/services/post_service.py:28-32\n    post = store.get_post(post_id)\n    if post is None:\n        return False\n    store.delete_post(post_id)\n    return True\n（形参 requester 声明于第 21 行，函数体内从未被引用）",
+      "confidence": 0.9,
+      "source": "security"
+    },
+    {
+      "title": "删帖不校验帖子归属者，requester 参数形同虚设",
+      "description": "delete_post 接收 requester 并在文档中声明“本层负责判断这个人能不能删这条帖子”，但函数体内只判断帖子是否存在，随后无条件删除。任何已登录/未登录调用方都可越权删除他人帖子（IDOR）；参数被声明却未使用也会让调用者误以为已做权限校验。",
+      "file": "app/services/post_service.py",
+      "line": 21,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在删除前校验归属与角色：if requester is None: raise/return 未授权；if post.author != requester and not is_admin(requester): 拒绝。并让调用方据此返回 401/403 而不是 200/404。",
+      "evidence": "app/services/post_service.py:21-32  def delete_post(post_id, requester=None):\\n    ...\\n    post = store.get_post(post_id)\\n    if post is None:\\n        return False\\n    store.delete_post(post_id)\\n    return True   # requester 全程未被使用",
+      "confidence": 0.97,
+      "source": "reviewer"
+    },
+    {
+      "title": "口令明文存储且用 == 明文比较，未哈希、非常量时间",
+      "description": "verify_password 直接执行 password == user.password，即把请求中的明文口令与存储的明文口令做普通相等比较。对应的存储模型也是明文（models/post.py:14 的 User.password 注释自认「真实项目应存哈希值」），且仓库中存在把明文口令写入存储的用法。触发条件：任何一次登录请求都会走这条比较逻辑。影响：一旦存储层（当前内存表，替换后即数据库）被读取或日志/快照泄漏，所有用户口令即刻可用；字符串 == 是短路比较、非常量时间，理论上可被计时侧信道逐步还原口令前缀。",
+      "file": "app/api/auth.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "存储侧改用带盐的慢哈希（PBKDF2/bcrypt/argon2），比较用 hmac.compare_digest：\n\n  import hmac, hashlib, secrets\n  def hash_password(password, salt=None):\n      salt = salt or secrets.token_bytes(16)\n      dk = hashlib.pbkdf2_hmac(\"sha256\", password.encode(), salt, 200_000)\n      return salt, dk\n\n  def verify_password(username, password):\n      user = find_user_by_name(username)\n      if user is None:\n          return False\n      salt, expected = user.password_hash\n      _, actual = hash_password(password, salt)\n      return hmac.compare_digest(actual, expected)\n\n注意 find_user_by_name 为 None 时应保持等时（可做一次哑哈希）以避免用户名枚举。",
+      "evidence": "app/api/auth.py:28-31\n    user = find_user_by_name(username)\n    if user is None:\n        return False\n    return password == user.password\napp/models/post.py:14  password: str  # 演示用的口令字段（真实项目应存哈希值）",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "请求参数 int() 转换无异常处理，非法输入直接崩溃",
+      "description": "handle_list_posts 与 handle_delete_post 都直接用 int(request.get(...)) 解析参数，没有任何 try/except 或类型校验。请求 ?page=abc 会抛 ValueError，请求中显式携带 page_size=null 会抛 TypeError，这些异常会穿透路由层返回未处理的 500（真实框架下会打印堆栈），且异常信息可能暴露内部实现。",
+      "file": "app/api/posts.py",
+      "line": 29,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "抽出统一的参数解析辅助函数，捕获 (TypeError, ValueError) 并返回 400 与明确错误信息，例如：\\ndef _as_int(request, key, default, minimum, maximum):\\n    try:\\n        value = int(request.get(key, default))\\n    except (TypeError, ValueError):\\n        return None  # 调用方返回 400\\n    return min(max(value, minimum), maximum)",
+      "evidence": "app/api/posts.py:29-30  page = int(request.get(\"page\", 1))\\n    page_size = int(request.get(\"page_size\", 20))\napp/api/posts.py:47  post_id = int(request.get(\"post_id\", 0))",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "page_size 无上限，可一次性构造超大响应",
+      "description": "page_size 直接取请求参数且不做范围校验，配合 post_service.list_posts 每次都对全量帖子排序后再切片（store.list_posts 内部 sorted 全表），请求方传 page_size=100000000 即触发全量结果序列化，单个请求即可占满内存/CPU，属于可被滥用的资源耗尽点。",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "performance",
+      "suggestion": "在路由层做边界校验：page_size = min(max(int(...), 1), MAX_PAGE_SIZE)（例如 100），page 同样限定为正数；数据层改为 LIMIT/OFFSET 查询，避免每次全表排序。",
+      "evidence": "app/api/posts.py:29-31  page = int(request.get(\"page\", 1))\\n    page_size = int(request.get(\"page_size\", 20))\\n    posts = post_service.list_posts(page=page, page_size=page_size)\napp/services/post_service.py:11-13  posts = store.list_posts()  # 内部 sorted 全表\\n    start = max(page - 1, 0) * page_size",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "分页参数 page_size 不设上限且未做类型校验",
+      "description": "handle_list_posts 直接把请求参数交给 int() 并透传给业务层，既没有上限（page_size=100000000 会一次性构造超大响应，可被用来耗尽内存/带宽，形成放大攻击），也没有下限与类型校验：page_size 传负数时切片 list[start:start+page_size] 语义异常，可绕过分页约束返回超预期数据；传非数字字符串（如 page_size=abc）会抛出未捕获的 ValueError，接口以异常/500 结束。触发条件：普通未授权 HTTP 请求即可，无需任何凭据。",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "在路由层做白名单式校验并夹紧范围，异常输入返回 400：\n\n  try:\n      page = max(int(request.get(\"page\", 1)), 1)\n      page_size = int(request.get(\"page_size\", 20))\n  except (TypeError, ValueError):\n      return {\"status\": 400, \"body\": {\"message\": \"分页参数非法\"}}\n  page_size = min(max(page_size, 1), 100)\n\n并在业务层对 page_size 上限再兜底一层。",
+      "evidence": "app/api/posts.py:29-32\n    page = int(request.get(\"page\", 1))\n    page_size = int(request.get(\"page_size\", 20))\n    posts = post_service.list_posts(page=page, page_size=page_size)\n    return {\"status\": 200, \"body\": [post.to_dict() for post in posts]}\napp/services/post_service.py:12-13\n    start = max(page - 1, 0) * page_size\n    return posts[start : start + page_size]",
+      "confidence": 0.9,
+      "source": "security"
+    },
+    {
+      "title": "page_size 为负数时切片语义错误，静默返回错误结果",
+      "description": "list_posts 未校验 page_size 为正。当 page_size=-1 时 start=0，posts[0:-1] 会返回“除最后一条外的全部帖子”，既不是错误也不是合法分页；当 page_size 为负且 page>1 时切片边界同样错乱（start+page_size 可能小于 start，得到空列表或意外区间）。这是接口契约被破坏的逻辑缺陷，调用方无法察觉自己拿到的是错误数据。",
+      "file": "app/services/post_service.py",
+      "line": 13,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在入口处做参数校验/归一：if page < 1 or page_size < 1: raise ValueError 或返回 400；业务层用显式边界计算 offset = (page - 1) * page_size，并断言 offset >= 0、page_size >= 1。",
+      "evidence": "app/services/post_service.py:9-13  def list_posts(page=1, page_size=20):\\n    posts = store.list_posts()\\n    start = max(page - 1, 0) * page_size\\n    return posts[start : start + page_size]  # page_size 为负时退化成 posts[0:-1]",
+      "confidence": 0.85,
+      "source": "reviewer"
+    },
+    {
+      "title": "仓库缺少任何自动化测试",
+      "description": "仓库中只有 app/ 源码与 README.md，没有 tests 目录或任何测试文件；README 提供的验证方式是一段手工执行的 python -c 片段。删除鉴权、分页边界、口令校验等逻辑都没有回归测试保护，后续修复这些缺陷时无法自动验证行为（例如 int 参数异常、page_size 边界、越权删除）。",
+      "file": "README.md",
+      "line": 0,
+      "severity": "low",
+      "category": "test",
+      "suggestion": "补充针对 api 层的单元测试，至少覆盖：非法/缺失参数返回 400、page_size 上下限截断、无权限/未认证删除返回 401/403、他人帖子不可删除、错误口令返回 401。",
+      "evidence": "ls 输出（仓库根目录）：仅 app/ 与 README.md；app/ 下仅有 __init__.py 与 api/ db/ models/ services/ 四个包，无 tests 目录\nREADME.md 建议的验证方式为手工执行 python -c 片段（“怎么跑起来看”一节）",
+      "confidence": 0.75,
+      "source": "reviewer"
+    },
+    {
+      "title": "令牌无过期机制，TOKEN_TTL_SECONDS 定义后从未使用",
+      "description": "TOKEN_TTL_SECONDS = 3600 声明了令牌有效期，但全仓库没有任何地方读取它：issue_token 只返回 'username.secret'，没有签发时间也没有校验入口，意味着会话永不过期、无法吊销，同时该常量成为误导性死代码（读者会以为有效期已被实现）。",
+      "file": "app/api/auth.py",
+      "line": 14,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "要么删除该常量，要么在令牌载荷中加入签发/过期时间并实现对应的 verify_token（校验过期与签名），路由层统一调用它。",
+      "evidence": "app/api/auth.py:13-14  #: 令牌有效期（秒），演示用\\nTOKEN_TTL_SECONDS = 3600\napp/api/auth.py:17-19  def issue_token(username):\\n    return f\"{username}.{JWT_SECRET}\"  # 未使用 TTL，也没有 verify_token",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "next_post_id 为死代码，insert_post 允许重复 id 静默覆盖",
+      "description": "store.next_post_id() 定义了 id 自增逻辑，但仓库内没有任何调用方（服务层与路由层均未使用），insert_post 直接采用调用方传入的 post.id 并 _POSTS[post.id] = post。结果：自增序列形同虚设（_NEXT_ID 永远是 1），且重复 id 会静默覆盖既有记录而不报错，数据被无提示地丢失；模块级可变全局（_POSTS/_USERS/_NEXT_ID）在多线程/并发请求下也无任何同步保护。",
+      "file": "app/db/store.py",
+      "line": 33,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "让 insert_post 在 id 为空或冲突时拒绝/报错（例如 if post.id in _POSTS: raise ValueError），或统一改由 next_post_id() 分配 id；若不打算使用自增序列与并发访问，应删除该函数或明确标注为演示用途。",
+      "evidence": "app/db/store.py:33-38  def next_post_id():\\n    global _NEXT_ID\\n    ...\\n    return post_id   # 全仓库无调用方\\napp/db/store.py:41-44  def insert_post(post):\\n    _POSTS[post.id] = post  # 重复 id 直接覆盖",
+      "confidence": 0.8,
+      "source": "reviewer"
+    },
+    {
+      "title": "build_tag_query 返回值被丢弃，成为无意义调用",
+      "description": "filter_posts_by_tag 调用了 build_tag_query(tag) 却丢弃返回值，仅用注释说明“真实实现会拿去执行”。这让该函数调用完全没有效果（也让上面那条注入语句在当前版本不可被实际触发），容易让审查者与后续维护者误判数据流：要么以为过滤走的是 SQL，要么以为注入无法利用。",
+      "file": "app/db/store.py",
+      "line": 73,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "若不打算真正执行 SQL，应删除这次无副作用调用并在文档中说明筛选逻辑；若保留占位，应通过参数化查询真正执行并返回结果，避免“构造了却不使用”的悬空调用。",
+      "evidence": "app/db/store.py:71-74  def filter_posts_by_tag(tag):\\n    build_tag_query(tag)  # 真实实现：拿这条 SQL 去执行\\n    return [post for post in list_posts() if tag in post.tags]  # 实际未使用该 SQL",
+      "confidence": 0.85,
+      "source": "reviewer"
+    }
+  ]
+}

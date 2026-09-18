@@ -1,0 +1,214 @@
+{
+  "dataset": "blog_api",
+  "protocol": "reflection",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/blog_api/target",
+  "valid": true,
+  "seconds": 91.771,
+  "usage": {
+    "calls": 6,
+    "failed_calls": 0,
+    "prompt_tokens": 24696,
+    "completion_tokens": 21139,
+    "total_tokens": 45835,
+    "latency": 90.67
+  },
+  "cost": {
+    "total_tokens": 45835,
+    "tokens_per_finding": 5729.4
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "blog_api",
+    "target": "data/evaluation/blog_api/target",
+    "protocol": "reflection",
+    "tolerance": 3,
+    "counts": {
+      "reported": 8,
+      "true_positives": 6,
+      "false_positives": 2,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.75,
+      "recall": 1.0,
+      "f1": 0.8571,
+      "false_positive_rate": 0.25,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-jwt-secret": "JWT/会话签名密钥硬编码在源码中",
+      "plaintext-password-compare": "口令直接以 == 比较，未哈希且非常量时间",
+      "missing-admin-authz": "删帖接口完全无鉴权且身份取自客户端参数",
+      "idor-delete-any-post": "delete_post 接收 requester 却从未使用，可越权删除",
+      "sql-string-concat": "tag 查询用 f-string 拼 SQL，下游执行即注入",
+      "unbounded-page-size": "分页参数无上限且 int() 解析无兜底"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "JWT/会话签名密钥硬编码在源码中",
+        "file": "app/api/auth.py",
+        "line": 11,
+        "defect_id": "hardcoded-jwt-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "口令直接以 == 比较，未哈希且非常量时间",
+        "file": "app/api/auth.py",
+        "line": 31,
+        "defect_id": "plaintext-password-compare",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "删帖接口完全无鉴权且身份取自客户端参数",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "missing-admin-authz",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "delete_post 接收 requester 却从未使用，可越权删除",
+        "file": "app/services/post_service.py",
+        "line": 21,
+        "defect_id": "idor-delete-any-post",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "tag 查询用 f-string 拼 SQL，下游执行即注入",
+        "file": "app/db/store.py",
+        "line": 68,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "分页参数无上限且 int() 解析无兜底",
+        "file": "app/api/posts.py",
+        "line": 30,
+        "defect_id": "unbounded-page-size",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "删帖接口 post_id 直接 int() 转换，非法输入抛异常",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 7,
+        "title": "TOKEN_TTL_SECONDS 定义后未被引用，令牌无过期",
+        "file": "app/api/auth.py",
+        "line": 14,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "JWT/会话签名密钥硬编码在源码中",
+      "description": "JWT_SECRET 以字面量 \"blog-api-demo-jwt-secret\" 写死在源码里，并被 issue_token 直接拼进令牌。任何能拿到源码或部署产物的人都能复现该密钥并离线构造出格式合法的令牌，凭据应视为已泄露；所有共用该硬编码值部署的环境都受影响。",
+      "file": "app/api/auth.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改从环境变量或密钥管理服务读取，且不提交进仓库：import os; JWT_SECRET = os.environ[\"BLOG_JWT_SECRET\"]，缺失时启动即失败（不要回退默认值）。同时用标准签名实现（如 PyJWT 的 HS256）替代字符串拼接，并在修复后轮换密钥。",
+      "evidence": "#: 会话/JWT 签名用的密钥\n# 缺陷：签名密钥硬编码在源码里——任何能读到源码的人都能伪造任意用户的令牌，\nJWT_SECRET = \"blog-api-demo-jwt-secret\"\n\ndef issue_token(username):\n    return f\"{username}.{JWT_SECRET}\"",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "口令直接以 == 比较，未哈希且非常量时间",
+      "description": "verify_password 用 password == user.password 直接比较请求口令与存储值，说明存储侧保存的是口令本身而非哈希：一旦存储库泄露即全量账户沦陷；同时 == 是短路、非常量时间比较，其时间差异可被用于辅助口令猜测。",
+      "file": "app/api/auth.py",
+      "line": 31,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "存储侧只保存加盐强哈希（bcrypt/argon2 或 hashlib.scrypt/pbkdf2），比对改为常量时间：import hmac; return hmac.compare_digest(...)。用户名不存在时也执行一次哑哈希，避免用户枚举的时序差异。",
+      "evidence": "user = find_user_by_name(username)\n    if user is None:\n        return False\n    return password == user.password",
+      "confidence": 0.85,
+      "source": "reflection"
+    },
+    {
+      "title": "删帖接口完全无鉴权且身份取自客户端参数",
+      "description": "handle_delete_post 取出 post_id 后直接调用 post_service.delete_post，全程未校验令牌或调用方身份；requester 直接取 request.get(\"username\")，是客户端可任意伪造的明文参数。任何未认证调用者只要知道或遍历 post_id 就能删除任意帖子，造成数据被批量破坏。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在路由入口先解析并校验服务端会话令牌得到 current_user（不要把请求体里的 username 当身份），再要求 current_user.role == \"admin\" 或 current_user.name == post.author，否则返回 401/403；业务层只接受这个已校验的身份，而不是原始请求参数。",
+      "evidence": "def handle_delete_post(request):\n    ...\n    post_id = int(request.get(\"post_id\", 0))\n    deleted = post_service.delete_post(post_id, requester=request.get(\"username\"))",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "delete_post 接收 requester 却从未使用，可越权删除",
+      "description": "delete_post(post_id, requester) 的注释说明本层负责判断“这个人能不能删这条帖子”，但函数体只做存在性判断后即调用 store.delete_post，requester 在整个函数体中没有被使用，任意用户都能删除他人帖子（越权 / IDOR）。",
+      "file": "app/services/post_service.py",
+      "line": 21,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "删除前做归属校验，例如：post = store.get_post(post_id); if post is None: return False; if requester != post.author: return False; store.delete_post(post_id)。注意 requester 必须由上层从已校验的会话身份传入，不能是请求体里的 username，否则伪造用户名即可绕过校验。",
+      "evidence": "def delete_post(post_id, requester=None):\n    \"\"\"...requester 是当前请求方传来的用户名，本层负责判断\\\"这个人能不能删这条帖子\\\"。\"\"\"\n    post = store.get_post(post_id)\n    if post is None:\n        return False\n    store.delete_post(post_id)   # requester 从未被使用\n    return True",
+      "confidence": 0.9,
+      "source": "reflection"
+    },
+    {
+      "title": "tag 查询用 f-string 拼 SQL，下游执行即注入",
+      "description": "build_tag_query 用 f-string 把 tag 直接拼进语句（WHERE tags LIKE '%{tag}%'），而 tag 来自 handle_list_posts_by_tag 的 request.get(\"tag\")，完全不可信。本仓库中该函数只返回字符串、未展示实际执行点，但调用方一旦按注释把返回值交给数据库执行，就是可利用的 SQL 注入入口。",
+      "file": "app/db/store.py",
+      "line": 68,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "改为参数化并转义 LIKE 通配符：先 escape_like(tag) = tag.replace(\"\\\\\", \"\\\\\\\\\").replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\")，再 return (\"SELECT id, title, author FROM posts WHERE tags LIKE ? ESCAPE '\\\\'\", [\"%\" + escape_like(tag) + \"%\"]); 由驱动绑定参数，避免 % / _ 被用作语义篡改与全表扫描，同时对 tag 做长度上限校验。",
+      "evidence": "def build_tag_query(tag):\n    \"\"\"...缺陷：直接用字符串拼接把 tag 拼进 SQL...\"\"\"\n    return f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"",
+      "confidence": 0.7,
+      "source": "reflection"
+    },
+    {
+      "title": "分页参数无上限且 int() 解析无兜底",
+      "description": "handle_list_posts 直接 page_size = int(request.get(\"page_size\", 20)) 并透传给业务层，既没有上限也没有格式校验：page_size=100000000 会构造超大响应体造成内存与 CPU 消耗，page_size=abc 或空串则抛 ValueError 冒泡为 500。",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "用统一的带兜底解析函数同时解决上限与非法输入：\nMAX_PAGE_SIZE = 100\ndef _to_int(raw, default, lo, hi):\n    try:\n        v = int(raw)\n    except (TypeError, ValueError):\n        return default\n    return min(max(v, lo), hi)\npage = _to_int(request.get(\"page\", 1), 1, 1, 10 ** 6)\npage_size = _to_int(request.get(\"page_size\", 20), 20, 1, MAX_PAGE_SIZE)",
+      "evidence": "page = int(request.get(\"page\", 1))\n    page_size = int(request.get(\"page_size\", 20))\n    posts = post_service.list_posts(page=page, page_size=page_size)",
+      "confidence": 0.85,
+      "source": "reflection"
+    },
+    {
+      "title": "删帖接口 post_id 直接 int() 转换，非法输入抛异常",
+      "description": "handle_delete_post 用 int(request.get(\"post_id\", 0)) 解析入参，当 post_id 为非数字字符串时抛出 ValueError，函数内无捕获也无兜底，会向上冒泡导致 500 / 请求失败。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "low",
+      "category": "bug",
+      "suggestion": "复用上面的 _to_int 做兜底；post_id 缺失或非法时直接返回 400，而不是让异常冒泡。",
+      "evidence": "post_id = int(request.get(\"post_id\", 0))",
+      "confidence": 0.8,
+      "source": "reflection"
+    },
+    {
+      "title": "TOKEN_TTL_SECONDS 定义后未被引用，令牌无过期",
+      "description": "auth.py 定义了 TOKEN_TTL_SECONDS = 3600 并注释为令牌有效期，但仓库中没有任何地方引用它；issue_token 只返回 f\"{username}.{JWT_SECRET}\"，不含签发时间也没有过期校验，令牌一旦签发即长期有效，且该常量会让读者误以为已实现过期控制。",
+      "file": "app/api/auth.py",
+      "line": 14,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "要么在签发时把 exp = now + TOKEN_TTL_SECONDS 写入载荷并在校验时比对（过期返回 401），要么删除该常量与相关注释以免误导。",
+      "evidence": "#: 令牌有效期（秒），演示用\nTOKEN_TTL_SECONDS = 3600\n\ndef issue_token(username):\n    \"\"\"给指定用户签发会话令牌（演示用，不做真实 JWT 编码）。\"\"\"\n    return f\"{username}.{JWT_SECRET}\"",
+      "confidence": 0.9,
+      "source": "reflection"
+    }
+  ]
+}

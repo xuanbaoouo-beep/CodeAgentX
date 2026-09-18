@@ -1,0 +1,264 @@
+{
+  "dataset": "task_queue",
+  "protocol": "workflow",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/task_queue/target",
+  "valid": true,
+  "seconds": 64.921,
+  "usage": {
+    "calls": 12,
+    "failed_calls": 0,
+    "prompt_tokens": 67981,
+    "completion_tokens": 12078,
+    "total_tokens": 80059,
+    "latency": 57.566,
+    "llm_usage": {
+      "calls": 12,
+      "failed_calls": 0,
+      "prompt_tokens": 67981,
+      "completion_tokens": 12078,
+      "total_tokens": 80059,
+      "latency": 57.566
+    }
+  },
+  "cost": {
+    "total_tokens": 80059,
+    "tokens_per_finding": 8005.9
+  },
+  "flags": {
+    "degraded": false
+  },
+  "judge": {},
+  "evaluation": {
+    "dataset": "task_queue",
+    "target": "data/evaluation/task_queue/target",
+    "protocol": "workflow",
+    "tolerance": 3,
+    "counts": {
+      "reported": 10,
+      "true_positives": 6,
+      "false_positives": 4,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75,
+      "false_positive_rate": 0.4,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "pickle-untrusted-payload": "pickle.loads 反序列化队列数据，可导致任意代码执行",
+      "unbounded-retry": "run_with_retry 无限重试且无退避，可耗尽 CPU 并永久阻塞 worker",
+      "no-task-timeout": "日志原样输出整个任务 payload，存在敏感信息泄露",
+      "broad-except-swallow": "except Exception 吞掉异常，任务静默丢失且不标记失败",
+      "task-state-race": "状态表读—改—写非原子，多 worker 并发下状态被覆盖",
+      "sensitive-payload-logging": "任务 payload 原样写入日志，泄露口令 / token 等凭据"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "pickle.loads 反序列化队列数据，可导致任意代码执行",
+        "file": "worker/queue.py",
+        "line": 29,
+        "defect_id": "pickle-untrusted-payload",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "run_with_retry 无限重试且无退避，可耗尽 CPU 并永久阻塞 worker",
+        "file": "worker/retry.py",
+        "line": 21,
+        "defect_id": "unbounded-retry",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "日志原样输出整个任务 payload，存在敏感信息泄露",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "no-task-timeout",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "任务执行无超时，卡死任务会永久占住 worker",
+        "file": "worker/runner.py",
+        "line": 31,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 4,
+        "title": "except Exception 吞掉异常，任务静默丢失且不标记失败",
+        "file": "worker/runner.py",
+        "line": 46,
+        "defect_id": "broad-except-swallow",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "状态表读—改—写非原子，多 worker 并发下状态被覆盖",
+        "file": "worker/queue.py",
+        "line": 38,
+        "defect_id": "task-state-race",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "任务 payload 原样写入日志，泄露口令 / token 等凭据",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "sensitive-payload-logging",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "handler 取自不可信 payload，绕过 TASKS 注册表",
+        "file": "worker/runner.py",
+        "line": 30,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 8,
+        "title": "_STATUS 只增不删，长期运行内存无上限增长",
+        "file": "worker/queue.py",
+        "line": 13,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 9,
+        "title": "should_retry 恒返回 True，逻辑失效且为死代码",
+        "file": "worker/retry.py",
+        "line": 12,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "pickle.loads 反序列化队列数据，可导致任意代码执行",
+      "description": "dequeue() 从 _QUEUE 取出原始 bytes 后直接 `return pickle.loads(raw)`，没有任何来源校验、签名校验或类型白名单。pickle 反序列化本身会在 __reduce__/__setstate__ 阶段执行任意对象构造逻辑，攻击者只要能向该队列投递字节流（例如真实部署中队列由 broker / 网络 / 其它进程的生产者写入，或该 bytes 值经由外部接口进入队列），即可在 worker 进程中执行任意代码（RCE），影响范围是整个 worker 进程的权限（读写文件、发起网络请求、读取进程内其它任务中的口令）。需要说明的可控性边界：在本仓库内 _QUEUE 是进程内 queue.Queue（worker/queue.py:10），唯一的写入方是 enqueue() 且写入前经过 pickle.dumps，因此仅凭本仓库代码不存在直接的攻击入口；风险成立的前提是部署时该队列对接了外部生产者或存在未在仓库内体现的入队接口。",
+      "file": "worker/queue.py",
+      "line": 29,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "不要用 pickle 承载跨信任边界的任务数据：改用 JSON/msgpack 等纯数据格式，并用任务名到处理函数的显式白名单映射（worker/tasks.py 的 TASKS/get_handler 已是这种模式，可直接复用）；若因兼容性必须保留 pickle，则至少使用 hmac + 服务端密钥对 payload 签名并在 loads 前验签，同时用 RestrictedUnpickler 限制 find_class 的白名单。",
+      "evidence": "worker/queue.py:10 `_QUEUE: \"queue.Queue[bytes]\" = queue.Queue()`；worker/queue.py:28-29 `raw = _QUEUE.get()` / `return pickle.loads(raw)`；worker/queue.py:16-18 `def enqueue(task): _QUEUE.put(pickle.dumps(task))`；worker/runner.py:42 `task = dequeue()`（每个 run_once 都会反序列化）。bandit 在本环境不可用（未找到 bandit），结论来自人工数据流核对。",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "run_with_retry 无限重试且无退避，可耗尽 CPU 并永久阻塞 worker",
+      "description": "run_with_retry() 是 `while True:` 循环，捕获异常后 `continue`，没有重试次数上限、没有 backoff/抖动，也没有把失败向上传递。只要 handler 持续失败（例如下游依赖不可用、任务参数非法、恶意任务故意抛错），该循环会以最紧的节奏反复调用 handler，打满一个 CPU 核心，并且由于它在 execute() 的调用栈内同步执行（worker/runner.py:31），run_once 永不返回、worker 线程被永久占用，队列后续任务全部得不到处理——这是一个可由单个恶意/异常任务触发的可用性（DoS）问题。注意此处 only 影响 execute() 内被捕获的异常，因此上层 runner 的 except Exception 也感知不到失败。",
+      "file": "worker/retry.py",
+      "line": 21,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "引入上限与退避：例如维护 attempts 计数，达到 MAX_RETRIES（如 5）后抛出/返回失败；每次重试前 `time.sleep(min(base * 2 ** attempts, max_delay) + random.uniform(0, jitter))`；并把重试次数、最终失败通过日志与状态（set_status(id, \"failed\")）上报。可复用已有但未被调用的 should_retry() 语义（需先把返回条件改为 attempts < MAX_RETRIES）。",
+      "evidence": "worker/retry.py:21-25 `while True:` / `try: return handler(task)` / `except Exception: continue`；worker/retry.py:12 `return attempts >= 0`（should_retry 恒为真且未被 run_with_retry 调用）；worker/runner.py:31 `result = run_with_retry(task, handler)`（同步调用，循环内不返回则该 worker 停滞）。",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "日志原样输出整个任务 payload，存在敏感信息泄露",
+      "description": "log_task 将整个 task 字典（含 id/handler/payload）直接写入 INFO 日志。payload 中可能包含口令、token 等敏感字段，日志一旦被采集或读取即等同于凭据泄露。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "只记录必要字段（如 task id、handler 名、耗时），对 payload 做白名单/脱敏（掩码 password/token/secret 等键）后再输出，或直接避免打印 payload。",
+      "evidence": "def log_task(task):\n    logger.info(\"开始处理任务：%s\", task)",
+      "confidence": 0.95,
+      "source": "reviewer"
+    },
+    {
+      "title": "任务执行无超时，卡死任务会永久占住 worker",
+      "description": "execute() 直接同步调用 handler（经 run_with_retry 包装），没有任何超时/看门狗/信号中断机制。若某个 handler 阻塞在网络 I/O、死锁或长耗时计算上，该 worker 线程将永远停在 execute() 中，set_status(id, \"done\") 与后续任务处理都无法进行；在 WORKER_CONCURRENCY=4 的配置下（worker/settings.py:14），只需 4 个卡死任务即可让整个 worker 池不可用。触发条件：队列中出现会长时间阻塞的任务，攻击者若可投递任务即可主动构造该场景（慢任务 DoS）。",
+      "file": "worker/runner.py",
+      "line": 31,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "为任务执行设定超时：在独立线程/子进程中执行 handler 并用 ThreadPoolExecutor 的 future.result(timeout=...) 或 multiprocessing + join(timeout) 控制；超时后记录并 set_status(task_id, \"failed\")，避免 worker 被无限占用。同时给 run_with_retry 的重试也叠加整体时间预算。",
+      "evidence": "worker/runner.py:23-33 `def execute(task): set_status(task[\"id\"], \"running\"); handler = task[\"handler\"]; result = run_with_retry(task, handler); set_status(task[\"id\"], \"done\")`（无 timeout 参数、无并发/看门狗）；worker/settings.py:14 `WORKER_CONCURRENCY = 4`。",
+      "confidence": 0.9,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "except Exception 吞掉异常，任务静默丢失且不标记失败",
+      "description": "run_once() 在 try 中执行 execute()，except Exception 只写一条 warning 日志，既不 re-raise，也不 set_status(task_id, \"failed\")/重新入队。任务既不会被重试也不会被标记失败，状态停留在 \"running\"，调用方与监控系统完全无从感知，导致任务静默丢失（数据丢失/状态不一致）。触发条件：任何任务执行抛异常（含 run_with_retry 因 handler 类型错误、pickle 反序列化异常等）。同时 except 只记录 str(exc)，丢失堆栈，排障困难。",
+      "file": "worker/runner.py",
+      "line": 46,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "捕获后显式标记失败并上报：`except Exception: logger.exception(\"任务执行失败 id=%s\", task.get(\"id\")); set_status(task.get(\"id\"), \"failed\"); raise`（或返回明确失败结果并决定是否重新入队/进死信队列）。使用 logger.exception 以保留堆栈。",
+      "evidence": "worker/runner.py:44-47 `try: return execute(task)` / `except Exception as exc: logger.warning(\"任务执行失败：%s\", exc)`（无 set_status、无 raise）；worker/queue.py:38 的 get_status 默认返回 \"pending\"，说明状态字段本是给调用方观测用的，此路径下却会残留 \"running\"。",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "状态表读—改—写非原子，多 worker 并发下状态被覆盖",
+      "description": "set_status() 先 `_STATUS.get(task_id, \"pending\")` 再 `_STATUS[task_id] = status`，两步之间没有锁、也没有使用原子操作；_STATUS 是普通 dict（CPython 下单次 get/set 原子，但组合操作不是）。在 WORKER_CONCURRENCY=4 的多线程 worker 下，两个线程同时更新同一 task 会出现丢失更新：旧状态被错误地返回/覆盖，导致状态机错乱（例如 done 覆盖 failed、或旧值被返回给调用方用于判断重试），调用方基于错误状态可能重复执行或漏执行任务。触发条件：两个及以上 worker 并发处理/更新同一 task_id。",
+      "file": "worker/queue.py",
+      "line": 38,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "为状态表加锁：`_LOCK = threading.Lock()`，set_status 内 `with _LOCK:` 做 get+set，或改用 `_STATUS.setdefault(...)`／单条原子字典操作配合锁；更彻底的做法是把状态维护交给支持 CAS/事务的外部存储。",
+      "evidence": "worker/queue.py:13 `_STATUS: dict[str, str] = {}`；worker/queue.py:32-40 `current = _STATUS.get(task_id, \"pending\")` / `_STATUS[task_id] = status` / `return current`（读改写三步无锁）；worker/settings.py:14 表明存在多 worker 并发；worker/runner.py:29,32 在 execute 中两次调用 set_status。",
+      "confidence": 0.9,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "任务 payload 原样写入日志，泄露口令 / token 等凭据",
+      "description": "log_task() 用 `logger.info(\"开始处理任务：%s\", task)` 把整个任务字典（含 payload 中所有字段）写入日志，且 run_once() 在处理每个任务前都会调用它。任务数据在真实场景常携带 SMTP/API 的口令、token、用户 PII，这些内容会落到日志文件/日志聚合系统，任何能读日志的人（运维、日志平台、日志被误采集到外部）即获得凭据，且凭据进入日志后难以在事后撤销。由于 payload 来自队列且可能在外部被构造，攻击者还能在字段中嵌入换行符伪造日志行（日志注入），进一步污染审计记录。触发条件：任务 payload 中包含敏感字段（如 tasks.send_mail 这类任务通常带有收件人与凭据）。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "改为只记录非敏感元数据并对字段做白名单脱敏，例如：`logger.info(\"开始处理任务：id=%s handler=%s\", task.get(\"id\"), task.get(\"handler\"))`；对 payload 中的 password/token/secret 等键统一替换为 \"***\"，并对写入日志的字符串做换行/控制字符转义。",
+      "evidence": "worker/runner.py:14-20 `def log_task(task): ... logger.info(\"开始处理任务：%s\", task)`；worker/runner.py:43 `log_task(task)` 在 execute 之前对每个任务无条件调用；worker/tasks.py:11-14 `send_mail` 消费 `task['to'] / task['subject']`，说明 payload 直接承载业务字段。",
+      "confidence": 0.85,
+      "source": "security"
+    },
+    {
+      "title": "handler 取自不可信 payload，绕过 TASKS 注册表",
+      "description": "execute 从任务字典里取 task[\"handler\"] 作为可调用对象执行，而 tasks.py 提供的 get_handler/TASKS 注册表在仓库内无任何调用方。这既绕过了任务类型白名单（放大 pickle 反序列化风险），也让 get_handler、enqueue、settings.QUEUE_NAME/WORKER_CONCURRENCY 等成为死代码，职责边界混乱，后续难以维护。",
+      "file": "worker/runner.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "maintainability",
+      "suggestion": "任务只传任务名，由 execute 通过 get_handler(name) 从注册表解析处理器（并对未知名字给出明确错误），同时移除或接线未使用的 enqueue / 配置常量。",
+      "evidence": "execute 中: handler = task[\"handler\"]；tasks.py 中 get_handler 定义后无调用方；settings.py 的 QUEUE_NAME / WORKER_CONCURRENCY 全仓库未被引用",
+      "confidence": 0.8,
+      "source": "reviewer"
+    },
+    {
+      "title": "_STATUS 只增不删，长期运行内存无上限增长",
+      "description": "_STATUS 是模块级 dict，set_status 只写入、全仓库没有任何删除或清理逻辑，也没有容量上限。长驻 worker 处理大量任务后状态表会持续膨胀（内存泄漏），且已完成任务的 id 永远保留。",
+      "file": "worker/queue.py",
+      "line": 13,
+      "severity": "low",
+      "category": "performance",
+      "suggestion": "任务进入终态后按 TTL 或容量上限清理（如 LRU/定期清理），或把状态外置到有生命周期的存储中。",
+      "evidence": "#: 任务状态表：task_id -> 状态字符串\n_STATUS: dict[str, str] = {}\n...\n_STATUS[task_id] = status  # 无对应的删除/清理逻辑",
+      "confidence": 0.75,
+      "source": "reviewer"
+    },
+    {
+      "title": "should_retry 恒返回 True，逻辑失效且为死代码",
+      "description": "should_retry 对任意 attempts>=0 都返回 True，实际等价于“永远重试”，未实现任何“是否还该重试”的判定逻辑；同时该函数在仓库内无任何调用方（死代码），容易误导后续维护者以为已有重试上限保护。",
+      "file": "worker/retry.py",
+      "line": 12,
+      "severity": "low",
+      "category": "bug",
+      "suggestion": "实现真实判定（如 return attempts < MAX_ATTEMPTS）并让 run_with_retry 调用它；若无使用价值则删除该函数，避免形成“存在重试上限”的错觉。",
+      "evidence": "def should_retry(attempts):\n    ...\n    return attempts >= 0",
+      "confidence": 0.85,
+      "source": "reviewer"
+    }
+  ]
+}

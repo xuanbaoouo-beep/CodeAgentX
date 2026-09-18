@@ -1,0 +1,284 @@
+{
+  "dataset": "config_loader",
+  "protocol": "workflow",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/config_loader/target",
+  "valid": true,
+  "seconds": 60.797,
+  "usage": {
+    "calls": 11,
+    "failed_calls": 0,
+    "prompt_tokens": 52473,
+    "completion_tokens": 11848,
+    "total_tokens": 64321,
+    "latency": 54.778,
+    "llm_usage": {
+      "calls": 11,
+      "failed_calls": 0,
+      "prompt_tokens": 52473,
+      "completion_tokens": 11848,
+      "total_tokens": 64321,
+      "latency": 54.778
+    }
+  },
+  "cost": {
+    "total_tokens": 64321,
+    "tokens_per_finding": 5847.4
+  },
+  "flags": {
+    "degraded": false
+  },
+  "judge": {},
+  "evaluation": {
+    "dataset": "config_loader",
+    "target": "data/evaluation/config_loader/target",
+    "protocol": "workflow",
+    "tolerance": 3,
+    "counts": {
+      "reported": 11,
+      "true_positives": 6,
+      "false_positives": 5,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.5455,
+      "recall": 1.0,
+      "f1": 0.7059,
+      "false_positive_rate": 0.4545,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "eval-config-value": "兜底为 int 值导致 eval() 抛 TypeError，兜底路径必崩",
+      "sensitive-value-logging": "加载时把整份配置（含口令/密钥）写入日志",
+      "default-admin-password": "内置默认管理员口令 admin123，未配置时静默启用",
+      "cache-key-ignores-source": "缓存键只用文件名，跨环境/来源配置互相串味",
+      "no-type-validation": "配置值不做类型校验，错误延后暴露",
+      "silent-default-on-error": "配置名未净化，存在路径穿越读取风险"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "兜底为 int 值导致 eval() 抛 TypeError，兜底路径必崩",
+        "file": "configlib/loader.py",
+        "line": 19,
+        "defect_id": "eval-config-value",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "配置值使用 eval() 解析，可执行任意代码",
+        "file": "configlib/loader.py",
+        "line": 19,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 2,
+        "title": "加载时把整份配置（含口令/密钥）写入日志",
+        "file": "configlib/loader.py",
+        "line": 30,
+        "defect_id": "sensitive-value-logging",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "内置默认管理员口令 admin123，未配置时静默启用",
+        "file": "configlib/schema.py",
+        "line": 7,
+        "defect_id": "default-admin-password",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "缓存键只用文件名，跨环境/来源配置互相串味",
+        "file": "configlib/cache.py",
+        "line": 18,
+        "defect_id": "cache-key-ignores-source",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "缓存返回共享可变字典且持锁执行慢速 IO",
+        "file": "configlib/cache.py",
+        "line": 25,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 6,
+        "title": "配置值不做类型校验，错误延后暴露",
+        "file": "configlib/schema.py",
+        "line": 28,
+        "defect_id": "no-type-validation",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "配置值不做类型校验，字符串被当整数使用",
+        "file": "configlib/schema.py",
+        "line": 36,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 8,
+        "title": "配置名未净化，存在路径穿越读取风险",
+        "file": "configlib/sources.py",
+        "line": 21,
+        "defect_id": "silent-default-on-error",
+        "match": "line"
+      },
+      {
+        "index": 9,
+        "title": "读取失败静默回退默认配置，不报错不告警",
+        "file": "configlib/sources.py",
+        "line": 26,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 10,
+        "title": "CONFIG_DIR 硬编码绝对路径且 name 未校验可致路径穿越",
+        "file": "configlib/sources.py",
+        "line": 22,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "兜底为 int 值导致 eval() 抛 TypeError，兜底路径必崩",
+      "description": "parse_value 把入参直接交给 eval()，但 eval 只接受 str/bytes/code，传入非字符串会抛 TypeError。而 FALLBACK_CONFIG 的值是 int/float/bool（{\"port\": 8080, \"timeout\": 30, \"debug\": False}），read_source 读取失败时返回该字典，load_config 随即对每个值调用 parse_value(8080) → eval(8080) 抛 TypeError。也就是说“兜底配置”这条本应最安全的路径必然崩溃；同理，任何 JSON 中写数字的配置项（如 \"port\": 8080）也会让 load_config 崩溃。",
+      "file": "configlib/loader.py",
+      "line": 19,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "parse_value 应处理非字符串入参：if not isinstance(raw, str): return raw，再对字符串做受限解析；根因仍是去掉 eval（见 eval 相关条目）。建议加单测覆盖 read_source 回退后调用 load_config 的链路。",
+      "evidence": "FALLBACK_CONFIG = {\"port\": 8080, \"timeout\": 30, \"debug\": False}   # sources.py:12\n...\nreturn eval(raw)                                                 # loader.py:19\n...\nconfig = {key: parse_value(value) for key, value in raw.items()}  # loader.py:29",
+      "confidence": 0.8,
+      "source": "reviewer"
+    },
+    {
+      "title": "配置值使用 eval() 解析，可执行任意代码",
+      "description": "load_config 对从配置源读到的每个值调用 parse_value，而 parse_value 直接 return eval(raw)。配置文件（JSON 字符串值）内容因此被当作 Python 表达式执行。触发条件：攻击者能够写入/篡改配置源（如 /etc/myapp/conf/<name>.json）或影响配置中心内容时，写入 \"__import__('os').system('id')\" 这类值即可在加载配置的进程中以该进程权限执行任意命令。配置本应是数据，用 eval 处理把数据提升为可执行代码，属典型的代码注入/不安全反序列化等价形态。",
+      "file": "configlib/loader.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "删除 eval，改用安全解析：仅支持 json.loads 或显式的类型转换/白名单解析（int(x)、布尔字面量解析等），例如 def parse_value(raw): return json.loads(raw) 或按 EXPECTED_TYPES 做显式转换，绝不执行输入字符串。",
+      "evidence": "def parse_value(raw):\n    \"\"\"...直接对配置内容调用 eval()...\"\"\"\n    return eval(raw)\n\n# load_config 中：\nconfig = {key: parse_value(value) for key, value in raw.items()}",
+      "confidence": 0.98,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "加载时把整份配置（含口令/密钥）写入日志",
+      "description": "load_config 在解析后执行 logger.info(\"已加载配置 %s: %s\", name, config)，把包含 admin_password、secret_key 等敏感项在内的整份配置原样输出到日志。触发条件：任何能读取应用日志的人（运维、日志采集系统、日志聚合平台）即可获取凭据，造成敏感信息泄露并可能横向越权。",
+      "file": "configlib/loader.py",
+      "line": 30,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "仅记录非敏感字段，或对 password/secret/token/key 等键做脱敏后输出，例如按敏感键名掩码为 '***'，避免整份配置落盘。",
+      "evidence": "raw = sources.read_source(name)\nconfig = {key: parse_value(value) for key, value in raw.items()}\nlogger.info(\"已加载配置 %s: %s\", name, config)",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "内置默认管理员口令 admin123，未配置时静默启用",
+      "description": "schema.py 硬编码 DEFAULT_ADMIN_PASSWORD = \"admin123\"，get_admin_password 在配置缺少 admin_password 时直接返回该值（schema.py:25 的 config.get(\"admin_password\", DEFAULT_ADMIN_PASSWORD)）。触发条件：任何未显式配置管理员口令的部署都会静默使用该公开口令，等价于内置后门，攻击者可用已知口令登录。",
+      "file": "configlib/schema.py",
+      "line": 7,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "移除硬编码默认口令；缺少 admin_password 时应报错并拒绝启动，或从环境变量/密钥管理服务读取，且首次部署强制设置。",
+      "evidence": "#: 未显式配置管理员口令时使用的兜底值\nDEFAULT_ADMIN_PASSWORD = \"admin123\"\n...\ndef get_admin_password(config):\n    return config.get(\"admin_password\", DEFAULT_ADMIN_PASSWORD)",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "缓存键只用文件名，跨环境/来源配置互相串味",
+      "description": "cache_key 仅返回 filename，未纳入来源/环境维度；get_cached 以该键在全局 _CACHE 中缓存。触发条件：同一进程/环境下对不同来源（dev、prod、不同配置中心）加载同名配置时，会命中同一缓存条目而读到错误配置。若 prod 运行时先读到 dev 同名配置，将长期使用错误（可能更宽松）的配置，属跨环境配置污染/信任边界混淆。",
+      "file": "configlib/cache.py",
+      "line": 18,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "缓存键应包含来源与环境，如 return \"%s::%s\" % (source, filename) 或拼接路径+环境标识，避免不同环境共享缓存。",
+      "evidence": "def cache_key(filename):\n    return filename\n...\nkey = cache_key(name)\nif key not in _CACHE:\n    _CACHE[key] = loader(name)",
+      "confidence": 0.9,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "缓存返回共享可变字典且持锁执行慢速 IO",
+      "description": "get_cached 把 loader(name) 的返回对象直接存入 _CACHE 并每次返回同一引用：调用方拿到配置后修改它（如 config[\"port\"]=x）会污染缓存，影响后续所有同键调用者，属于跨调用共享可变状态。同时 loader(name) 在 with _LOCK 临界区内执行，而实际 loader 会做文件读取（sources.read_source），慢速 IO 被放进锁内，所有线程的配置加载被串行化，首次加载时形成性能瓶颈。此外 _CACHE 无失效机制也无容量上限，长期运行的进程既无法热更新配置，内存也随不同 name 无限增长。",
+      "file": "configlib/cache.py",
+      "line": 25,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "锁内只做缓存读写，miss 时先在锁内占位释放锁再调用 loader（或使用双重检查 + 每键独立锁）；返回前返回浅拷贝或不可变映射（MappingProxyType）避免外部篡改；为缓存提供显式失效/重载接口与容量上限。",
+      "evidence": "with _LOCK:\n    if key not in _CACHE:\n        _CACHE[key] = loader(name)\n    return _CACHE[key]\n\n_CACHE = {}\n_LOCK = threading.Lock()",
+      "confidence": 0.75,
+      "source": "reviewer"
+    },
+    {
+      "title": "配置值不做类型校验，错误延后暴露",
+      "description": "coerce 定义了 EXPECTED_TYPES（port: int、timeout: int、debug: bool 等），但实现只判断 `if key in config` 就原样拷贝，既不校验类型也不做转换。因此 port=\"abc\"、debug=\"no\" 这类配置会被原样传递给下游，报错点远离真正原因（可能在某个 socket 绑定或算术运算处才炸）；同时不在 EXPECTED_TYPES 中的未知键被静默丢弃，拼错的键名（如 prot）不会被告知。",
+      "file": "configlib/schema.py",
+      "line": 28,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "按 EXPECTED_TYPES 做校验与转换：类型不符时抛出带键名、期望类型、实际值的 ConfigurationError；未知键至少记录 warning，避免拼写错误被静默忽略。",
+      "evidence": "result = {}\nfor key in EXPECTED_TYPES:\n    if key in config:\n        result[key] = config[key]\nreturn result",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "配置值不做类型校验，字符串被当整数使用",
+      "description": "coerce 只判断键是否存在（if key in config）便原样拷贝，从不按 EXPECTED_TYPES 校验或转换类型。触发条件：配置写成 port=\"abc\"（JSON 字符串）时会被原样返回，后续把字符串当整数使用会抛出难以定位的 TypeError 或产生错误比较结果，报错点远离真正原因。",
+      "file": "configlib/schema.py",
+      "line": 36,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "按 EXPECTED_TYPES 显式校验/转换类型，类型不符时抛错或转换失败即报错，例如对 int 字段执行 int(value) 并捕获转换异常。",
+      "evidence": "for key in EXPECTED_TYPES:\n    if key in config:\n        result[key] = config[key]\nreturn result",
+      "confidence": 0.85,
+      "source": "security"
+    },
+    {
+      "title": "配置名未净化，存在路径穿越读取风险",
+      "description": "read_source 用 path = os.path.join(CONFIG_DIR, \"%s.json\" % name) 拼接路径，name 未做任何净化（未校验是否含 .. 或路径分隔符）。触发条件：当调用方把外部可控字符串作为配置名传入（如 name=\"../../etc/passwd\"）时，路径穿越到 CONFIG_DIR 之外，可读取目录外的 .json 文件。该缺陷的利用依赖调用方将不可信输入作为 name 传入，本库内未对 name 来源做约束。",
+      "file": "configlib/sources.py",
+      "line": 21,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "对 name 做白名单校验，仅允许 [A-Za-z0-9_-]，并用 os.path.realpath 校验最终路径必须位于 CONFIG_DIR 之内，例如拒绝包含 '..'、'/'、'\\\\' 的 name。",
+      "evidence": "path = os.path.join(CONFIG_DIR, \"%s.json\" % name)\nwith open(path, encoding=\"utf-8\") as handle:",
+      "confidence": 0.5,
+      "source": "security"
+    },
+    {
+      "title": "读取失败静默回退默认配置，不报错不告警",
+      "description": "read_source 在文件不存在或 JSON 解析失败时（except (OSError, ValueError)）直接返回 dict(FALLBACK_CONFIG)，既不打日志也不抛异常。触发条件：配置被误删/写错或 .json 语法错误时，进程会以默认配置（port=8080、debug=False）静默运行，掩盖配置错误，也让攻击者可通过破坏配置使应用退化到可预测的默认行为而不被发现。",
+      "file": "configlib/sources.py",
+      "line": 26,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "读取/解析失败应记录错误日志并抛出明确异常（或至少 WARNING 告警），由调用方决定是否降级，避免无声回退。",
+      "evidence": "try:\n    with open(path, encoding=\"utf-8\") as handle:\n        return json.load(handle)\nexcept (OSError, ValueError):\n    return dict(FALLBACK_CONFIG)",
+      "confidence": 0.9,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "CONFIG_DIR 硬编码绝对路径且 name 未校验可致路径穿越",
+      "description": "CONFIG_DIR 硬编码为 \"/etc/myapp/conf\"，无法通过环境/配置注入，导致本地开发、Windows 与测试环境均不可用（README 亦说明本项目为评估样本）。另外 path = os.path.join(CONFIG_DIR, \"%s.json\" % name) 直接拼接外部传入的 name，未做白名单或路径归一化校验：name 若为 \"../../etc/passwd\"（末尾追加 .json 会有所限制，但仍可读到工作区内任意 *同名* 敏感 JSON 或通过软链逃逸），存在路径穿越读取的风险面。",
+      "file": "configlib/sources.py",
+      "line": 22,
+      "severity": "low",
+      "category": "other",
+      "suggestion": "把 CONFIG_DIR 改为可注入（构造参数或环境变量，如 os.environ.get(\"MYAPP_CONF_DIR\", ...)）；对 name 做白名单校验（如 re.match(r'^[A-Za-z0-9_\\-]+$')）并用 os.path.realpath 校验结果仍位于 CONFIG_DIR 之内。",
+      "evidence": "CONFIG_DIR = \"/etc/myapp/conf\"\n...\npath = os.path.join(CONFIG_DIR, \"%s.json\" % name)",
+      "confidence": 0.6,
+      "source": "reviewer"
+    }
+  ]
+}

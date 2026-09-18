@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeagentx"
+version = "0.1.0"
+description = "CodeAgentX - 基于自研 Agent 框架的多智能体代码审查与重构助手"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "CodeAgentX contributors" }]
+keywords = ["agent", "multi-agent", "code-review", "rag", "llm", "mcp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "openai>=1.30.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.27.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+rag = ["numpy>=1.26.0", "qdrant-client>=1.9.0"]
+tools = ["ruff>=0.5.0", "pylint>=3.2.0", "bandit>=1.7.0"]
+serve = ["fastapi>=0.111.0", "uvicorn>=0.30.0", "streamlit>=1.36.0"]
+dev = ["pytest>=8.0.0", "pyyaml>=6.0", "tqdm>=4.66.0"]
+
+[project.scripts]
+codeagentx = "codeagentx.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/xuanbaoouo-beep/CodeAgentX"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["data", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]

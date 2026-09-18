@@ -1,0 +1,81 @@
+{
+  "dataset": "blog_api",
+  "target": "data/evaluation/blog_api/target",
+  "language": "python",
+  "file_count": 11,
+  "file_count_note": "共 11 个文件 = 10 个 Python 源文件（5 个业务模块：api/auth.py、api/posts.py、services/post_service.py、db/store.py、models/post.py + 5 个 __init__.py）+ README.md；缺陷只分布在 4 个业务文件里",
+  "provenance": {
+    "source": "data/evaluation/blog_api/target/README.md「请勿修好这里的缺陷」表——缺陷是被刻意植入并被文档记录的，属于构造性 ground truth",
+    "line_numbers": "由人工逐条核对源码后定位（2026-09-17）",
+    "policy": "严格只收录该表列出的 6 条。README 或源码 docstring 里顺带提到的其它内容（例如 app/models/post.py 的 User.password 明文口令字段、app/api/posts.py 里 handle_list_posts_by_tag 透传的 tag）不计入 ground truth——否则就成了把模型事后发现的问题补进标签，那是对评测结果的污染",
+    "line_semantics": "line/line_end 表示缺陷所在的代码区间：缺失型缺陷（该做而没做）标整个函数体，单点缺陷标该语句所在行"
+  },
+  "defects": [
+    {
+      "id": "hardcoded-jwt-secret",
+      "title": "会话/JWT 签名密钥硬编码在源码里",
+      "file": "app/api/auth.py",
+      "line": 11,
+      "line_end": 11,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 1,
+      "keywords": ["硬编码", "密钥", "secret", "jwt", "JWT_SECRET", "签名"]
+    },
+    {
+      "id": "missing-admin-authz",
+      "title": "管理端接口（删帖）没有任何鉴权/权限校验，任何调用者都能删",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "line_end": 51,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 2,
+      "keywords": ["鉴权", "权限校验", "未授权", "admin", "删帖", "handle_delete_post"]
+    },
+    {
+      "id": "sql-string-concat",
+      "title": "按标签查询帖子时用字符串拼接构造 SQL（注入风险）",
+      "file": "app/db/store.py",
+      "line": 68,
+      "line_end": 68,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 3,
+      "keywords": ["SQL", "拼接", "注入", "injection", "参数化", "build_tag_query", "f-string"]
+    },
+    {
+      "id": "unbounded-page-size",
+      "title": "分页参数 page_size 不设上限，可被用来拖垮服务",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "line_end": 30,
+      "severity": "medium",
+      "category": "security",
+      "readme_row": 4,
+      "keywords": ["分页", "page_size", "上限", "拖垮", "DoS", "资源耗尽"]
+    },
+    {
+      "id": "idor-delete-any-post",
+      "title": "删除帖子不校验帖子归属者（越权删除他人帖子）",
+      "file": "app/services/post_service.py",
+      "line": 21,
+      "line_end": 32,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 5,
+      "keywords": ["越权", "归属", "IDOR", "作者", "delete_post", "横向越权"]
+    },
+    {
+      "id": "plaintext-password-compare",
+      "title": "口令用普通 == 比对且直接比较明文（未哈希、非常量时间比较）",
+      "file": "app/api/auth.py",
+      "line": 31,
+      "line_end": 31,
+      "severity": "medium",
+      "category": "security",
+      "readme_row": 6,
+      "keywords": ["明文", "==", "比较", "compare_digest", "哈希", "verify_password"]
+    }
+  ]
+}

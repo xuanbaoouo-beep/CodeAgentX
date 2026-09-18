@@ -1,0 +1,174 @@
+{
+  "dataset": "blog_api",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/blog_api/target",
+  "valid": true,
+  "seconds": 15.48,
+  "usage": {
+    "calls": 4,
+    "failed_calls": 0,
+    "prompt_tokens": 25709,
+    "completion_tokens": 3130,
+    "total_tokens": 28839,
+    "latency": 13.724
+  },
+  "cost": {
+    "total_tokens": 28839,
+    "tokens_per_finding": 4806.5
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "blog_api",
+    "target": "data/evaluation/blog_api/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 6,
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-jwt-secret": "会话/JWT 签名密钥硬编码在源码中",
+      "missing-admin-authz": "删帖接口完全缺失鉴权与权限校验",
+      "sql-string-concat": "按标签查询使用字符串拼接构造 SQL，存在注入风险",
+      "idor-delete-any-post": "删帖不校验帖子归属者，可越权删除他人帖子",
+      "unbounded-page-size": "分页参数 page_size 无上限，可被用于资源耗尽",
+      "plaintext-password-compare": "口令以明文进行非常量时间比较"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "会话/JWT 签名密钥硬编码在源码中",
+        "file": "app/api/auth.py",
+        "line": 11,
+        "defect_id": "hardcoded-jwt-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "删帖接口完全缺失鉴权与权限校验",
+        "file": "app/api/posts.py",
+        "line": 41,
+        "defect_id": "missing-admin-authz",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "按标签查询使用字符串拼接构造 SQL，存在注入风险",
+        "file": "app/db/store.py",
+        "line": 68,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "删帖不校验帖子归属者，可越权删除他人帖子",
+        "file": "app/services/post_service.py",
+        "line": 28,
+        "defect_id": "idor-delete-any-post",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "分页参数 page_size 无上限，可被用于资源耗尽",
+        "file": "app/api/posts.py",
+        "line": 30,
+        "defect_id": "unbounded-page-size",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "口令以明文进行非常量时间比较",
+        "file": "app/api/auth.py",
+        "line": 31,
+        "defect_id": "plaintext-password-compare",
+        "match": "line"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "会话/JWT 签名密钥硬编码在源码中",
+      "description": "JWT_SECRET 以字面量 \"blog-api-demo-jwt-secret\" 直接写在源码里并被 issue_token 用于拼接令牌（第 19 行 f\"{username}.{JWT_SECRET}\"）。任何能读取仓库（含历史提交、CI 日志、打包产物）的人都能拿到密钥，从而伪造任意用户名的令牌并通过认证，造成越权访问；且密钥无法按环境轮换。",
+      "file": "app/api/auth.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "从环境变量或密钥管理服务（Vault/KMS/Secrets Manager）读取，启动时若缺失则直接失败；示例：JWT_SECRET = os.environ[\"APP_JWT_SECRET\"]，并将该变量加入 .env.example/部署清单，同时把已泄露的旧密钥作废并轮换。",
+      "evidence": "app/api/auth.py:11 `JWT_SECRET = \"blog-api-demo-jwt-secret\"`；第 19 行 `return f\"{username}.{JWT_SECRET}\"`",
+      "confidence": 0.97,
+      "source": "react"
+    },
+    {
+      "title": "删帖接口完全缺失鉴权与权限校验",
+      "description": "handle_delete_post 未校验调用方是否已登录、是否为管理员或帖子作者，直接执行 post_id = int(request.get(\"post_id\", 0)) 并调用 post_service.delete_post 删除数据（第 47-48 行）。任何未认证的请求只要提供一个 post_id 就能删除任意帖子，属于典型的破坏性越权操作。",
+      "file": "app/api/posts.py",
+      "line": 41,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "在路由层先做认证（解析并校验令牌、拿到当前用户），再做授权（仅管理员或帖子作者可删）；未认证返回 401，无权返回 403。例如：requester = authenticate(request); if requester is None: return {\"status\": 401, ...}; 随后在业务层校验归属者/角色。",
+      "evidence": "app/api/posts.py:41-51，函数体内仅有 `post_id = int(request.get(\"post_id\", 0))` 与 `deleted = post_service.delete_post(post_id, requester=request.get(\"username\"))`，无任何身份/权限判断",
+      "confidence": 0.97,
+      "source": "react"
+    },
+    {
+      "title": "按标签查询使用字符串拼接构造 SQL，存在注入风险",
+      "description": "build_tag_query 通过 f-string 把 tag 直接拼进 LIKE 子句：f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"。tag 来自请求参数（handle_list_posts_by_tag → post_service.list_posts_by_tag → store.filter_posts_by_tag），真实数据库驱动执行该语句时，攻击者可传入 ' OR '1'='1 或 '; DROP TABLE posts;-- 之类的载荷读取/破坏数据。",
+      "file": "app/db/store.py",
+      "line": 68,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用参数化查询并让驱动转义参数，例如 cur.execute(\"SELECT id, title, author FROM posts WHERE tags LIKE ?\", (f\"%{tag}%\",))，不要自行拼接 SQL 字符串；同时对 tag 做类型/长度白名单校验。",
+      "evidence": "app/db/store.py:68 `return f\"SELECT id, title, author FROM posts WHERE tags LIKE '%{tag}%'\"`；调用链 app/api/posts.py:37 → app/services/post_service.py:18 → app/db/store.py:73",
+      "confidence": 0.96,
+      "source": "react"
+    },
+    {
+      "title": "删帖不校验帖子归属者，可越权删除他人帖子",
+      "description": "delete_post(post_id, requester=None) 接收了 requester 参数（文档也写明本层负责判断\"这个人能不能删这条帖子\"），但函数体内只做存在性判断后即调用 store.delete_post(post_id)，完全没有比较 post.author 与 requester，也没有角色校验。任何知道 post_id 的调用方都能删除他人帖子（IDOR/越权删除），且数据删除不可恢复。",
+      "file": "app/services/post_service.py",
+      "line": 28,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "取到 post 后立即做授权判断，例如：if requester is None or (post.author != requester and not is_admin(requester)): return False（或抛出/返回 403 供路由层区分 404/403）。授权应放在服务端可信层，不能信任请求体里的 username。",
+      "evidence": "app/services/post_service.py:28-32：`post = store.get_post(post_id)` / `if post is None: return False` / `store.delete_post(post_id)` / `return True`，全程未使用 requester 或 post.author",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "分页参数 page_size 无上限，可被用于资源耗尽",
+      "description": "page_size = int(request.get(\"page_size\", 20)) 直接取自请求且不做范围限制，随后传给 post_service.list_posts 一次性构造并返回整个切片、再逐条调用 to_dict() 序列化。请求 page_size=100000000 会让服务一次性分配超大列表/响应体，单次请求即可耗尽内存或带宽（DoS）。",
+      "file": "app/api/posts.py",
+      "line": 30,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "对分页参数做白名单式上限与下限校验，例如 page_size = min(max(int(request.get(\"page_size\", 20)), 1), 100)，page 同样限制为非负整数；非法输入返回 400，避免把原始值直接透传给业务层。",
+      "evidence": "app/api/posts.py:29-32 `page = int(request.get(\"page\", 1))` / `page_size = int(request.get(\"page_size\", 20))` / `post_service.list_posts(page=page, page_size=page_size)`；app/api/posts.py 第 26-27 行文档亦承认该缺陷",
+      "confidence": 0.94,
+      "source": "react"
+    },
+    {
+      "title": "口令以明文进行非常量时间比较",
+      "description": "verify_password 用 `password == user.password` 直接比较请求口令与存储口令：一方面存储的是明文（User.password 字段直接保存原始口令，见 app/models/post.py:14），数据库/内存泄露即等同于口令泄露；另一方面 == 比较非常量时间，理论上可被计时侧信道逐步推断口令。",
+      "file": "app/api/auth.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "存储口令的哈希值（如 bcrypt/scrypt/argon2，或标准库 hashlib.pbkdf2_hmac 加盐），校验时用 hmac.compare_digest(candidate_hash, stored_hash) 做常量时间比较；示例：return hmac.compare_digest(hash_password(password, user.salt), user.password_hash)。",
+      "evidence": "app/api/auth.py:31 `return password == user.password`；app/models/post.py:14 `password: str  # 演示用的口令字段（真实项目应存哈希值）`",
+      "confidence": 0.93,
+      "source": "react"
+    }
+  ]
+}

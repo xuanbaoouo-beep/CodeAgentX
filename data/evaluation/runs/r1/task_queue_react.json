@@ -1,0 +1,174 @@
+{
+  "dataset": "task_queue",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/task_queue/target",
+  "valid": true,
+  "seconds": 22.422,
+  "usage": {
+    "calls": 6,
+    "failed_calls": 0,
+    "prompt_tokens": 29866,
+    "completion_tokens": 4311,
+    "total_tokens": 34177,
+    "latency": 20.326
+  },
+  "cost": {
+    "total_tokens": 34177,
+    "tokens_per_finding": 5696.2
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "task_queue",
+    "target": "data/evaluation/task_queue/target",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 6,
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "pickle-untrusted-payload": "pickle.loads 反序列化不可信队列数据，可致任意代码执行",
+      "broad-except-swallow": "run_once 吞掉异常且不标记失败，任务静默丢失",
+      "unbounded-retry": "任务失败后无限重试且无退避，会占满 CPU 并冲击下游",
+      "no-task-timeout": "任务执行无超时，卡死任务永久占用 worker",
+      "task-state-race": "任务状态读—改—写非原子，并发下丢失更新",
+      "sensitive-payload-logging": "日志原样打印整个任务 payload，泄露口令/token 等凭据"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "pickle.loads 反序列化不可信队列数据，可致任意代码执行",
+        "file": "worker/queue.py",
+        "line": 29,
+        "defect_id": "pickle-untrusted-payload",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "run_once 吞掉异常且不标记失败，任务静默丢失",
+        "file": "worker/runner.py",
+        "line": 46,
+        "defect_id": "broad-except-swallow",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "任务失败后无限重试且无退避，会占满 CPU 并冲击下游",
+        "file": "worker/retry.py",
+        "line": 21,
+        "defect_id": "unbounded-retry",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "任务执行无超时，卡死任务永久占用 worker",
+        "file": "worker/runner.py",
+        "line": 31,
+        "defect_id": "no-task-timeout",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "任务状态读—改—写非原子，并发下丢失更新",
+        "file": "worker/queue.py",
+        "line": 38,
+        "defect_id": "task-state-race",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "日志原样打印整个任务 payload，泄露口令/token 等凭据",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "sensitive-payload-logging",
+        "match": "line"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "pickle.loads 反序列化不可信队列数据，可致任意代码执行",
+      "description": "dequeue() 直接把队列中取出的原始字节交给 pickle.loads() 还原对象。队列内容可能来自其它进程、网络或上游生产者，攻击者只要向队列投递构造好的 pickle payload，就能在反序列化阶段执行任意代码（RCE），并进一步读取进程内存中的凭据、横向移动。触发条件：任何能向该队列写入数据的一方投递恶意 payload。",
+      "file": "worker/queue.py",
+      "line": 29,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "不要用 pickle 处理跨信任边界的数据。改用安全的序列化格式（如 JSON / MessagePack）并做显式 schema 校验，例如 json.loads(raw) 后用白名单字段构造任务对象；如确需 pickle，至少升级为带签名校验或限制 Unpickler.find_class 白名单，并确保只有可信生产者能写入队列。",
+      "evidence": "def dequeue():\n    raw = _QUEUE.get()\n    return pickle.loads(raw)  # worker/queue.py:28-29；文档字符串亦自述“pickle.loads 直接反序列化队列里的数据……执行任意代码（RCE）”",
+      "confidence": 0.97,
+      "source": "react"
+    },
+    {
+      "title": "run_once 吞掉异常且不标记失败，任务静默丢失",
+      "description": "run_once() 用 except Exception 捕获后只调用 logger.warning 打印一条消息，既不重新抛出、也不把任务状态置为 failed。异常被完全吞掉后，调用方无法感知失败，任务从此消失；同时 execute() 里已写入的 \"running\" 状态会永久残留，外部看到的仍是“执行中”。触发条件：任何任务处理器抛出异常。",
+      "file": "worker/runner.py",
+      "line": 46,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "捕获后至少完成两件事：把任务标记为失败并保留异常信息，然后向上抛出或返回明确的结果。例如：\n\n except Exception as exc:\n     set_status(task[\"id\"], \"failed\")\n     logger.exception(\"任务执行失败：%s\", task[\"id\"])\n     raise\n\n同时建议用 logger.exception 保留堆栈，便于排查。",
+      "evidence": "def run_once():\n    task = dequeue()\n    log_task(task)\n    try:\n        return execute(task)\n    except Exception as exc:\n        logger.warning(\"任务执行失败：%s\", exc)  # 无 re-raise、无 set_status(..., \"failed\")",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "任务失败后无限重试且无退避，会占满 CPU 并冲击下游",
+      "description": "run_with_retry() 用 while True + except Exception: continue 实现重试，既没有次数上限，也没有任何退避或抖动。只要 handler 持续失败，该循环就永不退出，worker 线程被永久占用，并以最高频率反复调用下游依赖（忙等烧 CPU、放大下游压力）。此外 should_retry(attempts) 直接 return attempts >= 0，对任何非负尝试次数都返回 True，无法起到拦截作用。触发条件：任务处理器持续抛出异常（如依赖不可用、数据非法）。",
+      "file": "worker/retry.py",
+      "line": 21,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "引入最大重试次数与指数退避，并让 should_retry 真正生效，例如：\n\nimport time\n\nMAX_ATTEMPTS = 5\nBACKOFF_BASE = 0.5\n\nwhile attempts < MAX_ATTEMPTS:\n    try:\n        return handler(task)\n    except Exception:\n        attempts += 1\n        if not should_retry(attempts):\n            raise\n        time.sleep(BACKOFF_BASE * 2 ** attempts + random.uniform(0, 0.1))\n\n同时把 should_retry 改为 return attempts < MAX_ATTEMPTS。",
+      "evidence": "def run_with_retry(task, handler):\n    while True:\n        try:\n            return handler(task)\n        except Exception:\n            continue   # worker/retry.py:21-25\n\n# 另一处 weak 实现：\ndef should_retry(attempts):\n    return attempts >= 0   # worker/retry.py:12，恒为 True",
+      "confidence": 0.93,
+      "source": "react"
+    },
+    {
+      "title": "任务执行无超时，卡死任务永久占用 worker",
+      "description": "execute() 同步调用 run_with_retry(task, handler)，全程没有任何超时或取消机制。若某个 handler 阻塞不返回（死锁、等待无响应的下游、写阻塞的 socket），该 worker 会被无限期占用，后续任务永远得不到处理，在 WORKER_CONCURRENCY 有限时会导致整个消费端停摆。触发条件：任务处理器长时间阻塞。",
+      "file": "worker/runner.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "为任务执行加超时与隔离：可将 handler 放到独立线程/进程池执行并用 future.result(timeout=N) 控制，超时后标记任务失败并中断/丢弃该 worker；或改造成显式的 task_timeout 配置项（可放入 settings.py），配合心跳与看门狗回收僵死 worker。",
+      "evidence": "def execute(task):\n    set_status(task[\"id\"], \"running\")\n    handler = task[\"handler\"]\n    result = run_with_retry(task, handler)  # 无 timeout / 无 future.result(timeout=...)\n    set_status(task[\"id\"], \"done\")",
+      "confidence": 0.88,
+      "source": "react"
+    },
+    {
+      "title": "任务状态读—改—写非原子，并发下丢失更新",
+      "description": "set_status() 先 _STATUS.get(...) 读取当前状态，再 _STATUS[task_id] = status 写回，中间没有任何锁保护。该模块注释说明会有多个 worker 并发处理任务，因此同一 task_id 上的并发更新会产生丢失更新与状态错乱（例如 A 读到 running 后被 B 覆盖，旧状态返回错误）。触发条件：多 worker/多线程同时更新同一任务状态。",
+      "file": "worker/queue.py",
+      "line": 38,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "用锁把读—改—写包成原子操作：\n\nimport threading\n_STATUS_LOCK = threading.Lock()\n\ndef set_status(task_id, status):\n    with _STATUS_LOCK:\n        current = _STATUS.get(task_id, \"pending\")\n        _STATUS[task_id] = status\n        return current\n\nget_status 也应使用同一把锁；若跨进程，则改用带 CAS/事务的共享存储（Redis、数据库）。",
+      "evidence": "def set_status(task_id, status):\n    current = _STATUS.get(task_id, \"pending\")\n    _STATUS[task_id] = status\n    return current   # worker/queue.py:38-40，模块级 _STATUS 无任何锁保护",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "日志原样打印整个任务 payload，泄露口令/token 等凭据",
+      "description": "log_task() 直接把整个 task 字典写进日志（logger.info(\"开始处理任务：%s\", task)）。任务 payload 中常含口令、token、邮箱地址等敏感字段，日志一旦被采集/持久化或被低权限人员读取，就等同于凭据泄露，并可能违反数据保护合规要求。触发条件：任何包含敏感字段的任务被处理。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "只记录非敏感的必要字段，并做脱敏，例如：\n\nSENSITIVE_KEYS = {\"password\", \"token\", \"secret\", \"authorization\"}\n\ndef log_task(task):\n    safe = {k: v for k, v in task.items() if k not in SENSITIVE_KEYS and k != \"handler\"}\n    logger.info(\"开始处理任务 id=%s type=%s payload=%s\", task.get(\"id\"), task.get(\"handler\"), safe)\n\n或在日志层配置脱敏过滤器，禁止直接以 %s 输出整个对象。",
+      "evidence": "def log_task(task):\n    logger.info(\"开始处理任务：%s\", task)   # worker/runner.py:14-20，整个 payload 入日志",
+      "confidence": 0.85,
+      "source": "react"
+    }
+  ]
+}

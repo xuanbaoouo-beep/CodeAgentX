@@ -1,0 +1,304 @@
+{
+  "dataset": "task_queue",
+  "protocol": "workflow",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/evaluation/task_queue/target",
+  "valid": true,
+  "seconds": 58.956,
+  "usage": {
+    "calls": 11,
+    "failed_calls": 0,
+    "prompt_tokens": 60891,
+    "completion_tokens": 11482,
+    "total_tokens": 72373,
+    "latency": 51.465,
+    "llm_usage": {
+      "calls": 11,
+      "failed_calls": 0,
+      "prompt_tokens": 60891,
+      "completion_tokens": 11482,
+      "total_tokens": 72373,
+      "latency": 51.465
+    }
+  },
+  "cost": {
+    "total_tokens": 72373,
+    "tokens_per_finding": 6031.1
+  },
+  "flags": {
+    "degraded": false
+  },
+  "judge": {},
+  "evaluation": {
+    "dataset": "task_queue",
+    "target": "data/evaluation/task_queue/target",
+    "protocol": "workflow",
+    "tolerance": 3,
+    "counts": {
+      "reported": 12,
+      "true_positives": 6,
+      "false_positives": 6,
+      "false_negatives": 0,
+      "labeled_defects": 6
+    },
+    "metrics": {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6667,
+      "false_positive_rate": 0.5,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "pickle-untrusted-payload": "pickle.loads 反序列化不可信队列数据可致 RCE",
+      "unbounded-retry": "任务失败后无限重试且无退避，可耗尽 CPU 拖垮 worker",
+      "broad-except-swallow": "run_once 吞掉异常，任务既不重抛也不标记 failed",
+      "task-state-race": "任务状态读-改-写非原子，多 worker 并发会丢失更新",
+      "no-task-timeout": "日志原样打印整个 task，泄露口令/token 等敏感字段",
+      "sensitive-payload-logging": "日志原样输出整个任务 payload 导致敏感信息泄露"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "pickle.loads 反序列化不可信队列数据可致 RCE",
+        "file": "worker/queue.py",
+        "line": 29,
+        "defect_id": "pickle-untrusted-payload",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "任务失败后无限重试且无退避，可耗尽 CPU 拖垮 worker",
+        "file": "worker/retry.py",
+        "line": 21,
+        "defect_id": "unbounded-retry",
+        "match": "line"
+      },
+      {
+        "index": 2,
+        "title": "run_once 吞掉异常，任务既不重抛也不标记 failed",
+        "file": "worker/runner.py",
+        "line": 46,
+        "defect_id": "broad-except-swallow",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "任务状态读-改-写非原子，多 worker 并发会丢失更新",
+        "file": "worker/queue.py",
+        "line": 38,
+        "defect_id": "task-state-race",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "日志原样打印整个 task，泄露口令/token 等敏感字段",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "no-task-timeout",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "日志原样输出整个任务 payload 导致敏感信息泄露",
+        "file": "worker/runner.py",
+        "line": 20,
+        "defect_id": "sensitive-payload-logging",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "任务执行无超时，卡死任务永久占用 worker",
+        "file": "worker/runner.py",
+        "line": 31,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 7,
+        "title": "dequeue 位于 try 之外，反序列化异常会直接击穿 worker 循环",
+        "file": "worker/runner.py",
+        "line": 42,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 8,
+        "title": "except Exception 仅打日志吞掉异常，任务静默丢失",
+        "file": "worker/runner.py",
+        "line": 47,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 9,
+        "title": "should_retry 返回值恒为真，判断逻辑失效",
+        "file": "worker/retry.py",
+        "line": 12,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 10,
+        "title": "settings 中的配置常量全部未被使用（死配置）",
+        "file": "worker/settings.py",
+        "line": 8,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 11,
+        "title": "get_handler 为死代码，且与 execute 的 handler 分发方式不一致",
+        "file": "worker/tasks.py",
+        "line": 25,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "pickle.loads 反序列化不可信队列数据可致 RCE",
+      "description": "dequeue() 直接对队列取出的字节串调用 pickle.loads(raw) 还原任务对象。pickle 反序列化会在还原过程中执行对象定义的 __reduce__/__setstate__ 等钩子，攻击者只要能向该队列投递数据（其它进程 / 网络 broker / 上游生产者），就能构造恶意 payload 在 worker 进程内执行任意代码。触发条件：queue 内容并非完全可信的内部来源；本仓库使用进程内 queue.Queue 且仅通过 enqueue(pickle.dumps) 写入，因此实际可利用性取决于部署时是否接入外部/跨进程队列（README 明确说明内容「可能来自外部」）。此外 runner.execute 直接取 task['handler'] 作为可调用对象执行（worker/runner.py:30-31），在 pickle 链上进一步放大了任意调用风险。",
+      "file": "worker/queue.py",
+      "line": 29,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用不可执行的安全序列化格式（如 json + 显式字段校验），或至少在反序列化前对来源做认证与白名单校验；如必须用 pickle，应使用 hmac 签名校验 payload 完整性并限制可信来源。",
+      "evidence": "worker/queue.py:28-29\n    raw = _QUEUE.get()\n    return pickle.loads(raw)\n以及 worker/runner.py:30-31\n    handler = task[\"handler\"]\n    result = run_with_retry(task, handler)",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "任务失败后无限重试且无退避，可耗尽 CPU 拖垮 worker",
+      "description": "run_with_retry() 使用 while True 循环，捕获任何异常后直接 continue，既没有重试次数上限也没有任何退避/抖动。对持续失败的 handler（例如任务参数非法或下游依赖不可用），worker 会立刻陷入忙循环，打满 CPU 且持续冲击下游依赖，形成拒绝服务效果。触发条件：任一 handler 抛出异常即可；tasks.add 在 task 缺少 'a'/'b' 键时抛 KeyError 就会触发。",
+      "file": "worker/retry.py",
+      "line": 21,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "引入最大重试次数与指数退避（必要时加抖动），超过上限后标记任务失败并返回/上抛，例如 for attempt in range(MAX_RETRIES): ... time.sleep(backoff(attempt))。",
+      "evidence": "worker/retry.py:21-25\n    while True:\n        try:\n            return handler(task)\n        except Exception:\n            continue",
+      "confidence": 0.95,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "run_once 吞掉异常，任务既不重抛也不标记 failed",
+      "description": "run_once 的 except Exception 只 logger.warning 打印后继续，既不重新抛出、也不把任务置为 failed，调用方完全无法感知失败，任务静默丢失；同时 execute() 中若在 set_status(task[\"id\"], \"done\") 之前出错，状态会残留 running，形成状态不一致。",
+      "file": "worker/runner.py",
+      "line": 46,
+      "severity": "high",
+      "category": "bug",
+      "suggestion": "捕获后显式 set_status(task[\"id\"], \"failed\") 并记录必要上下文，再重新抛出或通过显式返回值/回调上报失败；对无法恢复的异常应有统一失败出口。",
+      "evidence": "worker/runner.py:44-47  try: return execute(task) except Exception as exc: logger.warning(\"任务执行失败：%s\", exc)",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "任务状态读-改-写非原子，多 worker 并发会丢失更新",
+      "description": "set_status() 先 _STATUS.get() 再 _STATUS[task_id] = status 分三步修改共享字典，中间未加锁。settings.WORKER_CONCURRENCY=4 表明设计上存在多个并发 worker，多 worker 同时更新同一 task_id 时会互相覆盖，返回的旧状态也可能失真，导致状态数据不一致。触发条件：≥2 个 worker 并发更新同一任务状态。",
+      "file": "worker/queue.py",
+      "line": 38,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "用 threading.Lock 保护状态的读改写，或改用原子操作（如 queue/条件变量、数据库的 SELECT ... FOR UPDATE、CAS 语义）保证状态转换原子性。",
+      "evidence": "worker/queue.py:38-40\n    current = _STATUS.get(task_id, \"pending\")\n    _STATUS[task_id] = status\n    return current\nworker/settings.py:14\nWORKER_CONCURRENCY = 4",
+      "confidence": 0.85,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "日志原样打印整个 task，泄露口令/token 等敏感字段",
+      "description": "log_task 以 logger.info(\"开始处理任务：%s\", task) 打印完整 task 字典。任务 payload 可能包含口令、token、个人数据等，日志一旦被读取即等价于凭据泄露，且日志通常会被集中采集与长期存储，扩大了暴露面。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "只记录必要字段（如 task_id、任务名），对敏感键做脱敏/白名单过滤，避免直接格式化整个 payload。",
+      "evidence": "worker/runner.py:20  logger.info(\"开始处理任务：%s\", task)",
+      "confidence": 0.9,
+      "source": "reviewer"
+    },
+    {
+      "title": "日志原样输出整个任务 payload 导致敏感信息泄露",
+      "description": "log_task() 用 logger.info('开始处理任务：%s', task) 把整个任务字典原样写入日志。任务 payload 中可能包含口令、token 等敏感字段（例如 tasks.send_mail 处理 to/subject 这类业务数据），日志一旦被收集或读取即等同于凭据泄露，属于敏感信息落盘/外泄风险。触发条件：run_once() 对每个出队任务都会调用 log_task（worker/runner.py:43），只要任务含敏感字段即发生泄露。",
+      "file": "worker/runner.py",
+      "line": 20,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "只记录必要且非敏感的字段（如 task_id、handler 名），对敏感键做脱敏或黑名单过滤后再输出，例如 logger.info('处理任务 id=%s handler=%s', task.get('id'), task.get('handler'))。",
+      "evidence": "worker/runner.py:20\n    logger.info(\"开始处理任务：%s\", task)\nworker/runner.py:42-43\n    task = dequeue()\n    log_task(task)",
+      "confidence": 0.9,
+      "source": "security"
+    },
+    {
+      "title": "任务执行无超时，卡死任务永久占用 worker",
+      "description": "execute() 通过 run_with_retry(task, handler) 同步调用 handler，未设置任何超时或看门狗。若某任务 handler 阻塞（等待网络/锁/死循环），该 worker 会被永久占用，队列中后续任务得不到处理，构成可用性风险。触发条件：任意会长时间阻塞的 handler。",
+      "file": "worker/runner.py",
+      "line": 31,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "为任务执行设置超时（如用 concurrent.futures 配合 future.result(timeout=...)、signal.alarm 或独立子进程），超时后终止并标记任务失败。",
+      "evidence": "worker/runner.py:29-32\n    set_status(task[\"id\"], \"running\")\n    handler = task[\"handler\"]\n    result = run_with_retry(task, handler)\n    set_status(task[\"id\"], \"done\")",
+      "confidence": 0.85,
+      "source": "reviewer+security"
+    },
+    {
+      "title": "dequeue 位于 try 之外，反序列化异常会直接击穿 worker 循环",
+      "description": "run_once 中 task = dequeue() 与 log_task(task) 都在 try 之外，只有 execute(task) 被保护。若队列里存在损坏/恶意数据导致 pickle.loads 抛出异常（或 task 缺字段时 log_task 出错），异常会直接向上传播，使整个 worker 循环崩溃，异常处理策略前后不一致。",
+      "file": "worker/runner.py",
+      "line": 42,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "把 dequeue 及其后的处理一并纳入异常处理范围，或对「取任务失败」单独处理（跳过坏消息并告警），避免单条坏数据终止 worker。",
+      "evidence": "worker/runner.py:42-45  task = dequeue() / log_task(task) / try: return execute(task)",
+      "confidence": 0.75,
+      "source": "reviewer"
+    },
+    {
+      "title": "except Exception 仅打日志吞掉异常，任务静默丢失",
+      "description": "run_once() 用 except Exception as exc 捕获后只 logger.warning 打印，既不重新抛出也不把任务标记为 failed。任务失败后状态停留在 'running'，调用方无从感知，且未落任何失败标记，属于任务静默丢失/状态不一致。触发条件：execute() 内任一步骤抛异常（含 handler 异常、任务字段缺失等）。",
+      "file": "worker/runner.py",
+      "line": 47,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在 except 分支中调用 set_status(task['id'], 'failed') 记录失败态，并视需要重新抛出或返回失败结果；避免裸吞异常。",
+      "evidence": "worker/runner.py:44-47\n    try:\n        return execute(task)\n    except Exception as exc:\n        logger.warning(\"任务执行失败：%s\", exc)",
+      "confidence": 0.85,
+      "source": "security"
+    },
+    {
+      "title": "should_retry 返回值恒为真，判断逻辑失效",
+      "description": "should_retry(attempts) 返回 attempts >= 0，对任何非负 attempts 都是 True，实际上等于「永远重试」，不具备任何判断能力；若上游据此决定是否重试，将退化为无限重试（与 run_with_retry 的问题叠加）。",
+      "file": "worker/retry.py",
+      "line": 12,
+      "severity": "low",
+      "category": "bug",
+      "suggestion": "改为基于阈值判断，例如 return attempts < MAX_ATTEMPTS，并对 attempts < 0 做防御性处理。",
+      "evidence": "worker/retry.py:12  return attempts >= 0",
+      "confidence": 0.8,
+      "source": "reviewer"
+    },
+    {
+      "title": "settings 中的配置常量全部未被使用（死配置）",
+      "description": "QUEUE_NAME、LOG_LEVEL、WORKER_CONCURRENCY 定义了却没有任何模块 import 或引用（检索仅命中定义处）。LOG_LEVEL 未用于 logging 配置，WORKER_CONCURRENCY 未用于并发控制，QUEUE_NAME 未用于队列，配置与行为脱节，容易让维护者误以为这些开关已生效。",
+      "file": "worker/settings.py",
+      "line": 8,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "要么在 runner/queue 中真正消费这些常量（如 logging.basicConfig(level=LOG_LEVEL)、按 WORKER_CONCURRENCY 启动线程池），要么删除以免误导。",
+      "evidence": "worker/settings.py:8-14 定义常量；全仓库检索仅命中定义处，无 import 使用点；runner.py 仅 logging.getLogger(__name__) 未做 level 配置",
+      "confidence": 0.7,
+      "source": "reviewer"
+    },
+    {
+      "title": "get_handler 为死代码，且与 execute 的 handler 分发方式不一致",
+      "description": "tasks.py 提供了 name->handler 的注册表 TASKS 与 get_handler(name)，但 execute 直接使用 task[\"handler\"]（假定 payload 里带的是可调用对象），二者分发约定不一致；get_handler 无任何调用点，是死代码，且 TASKS[name] 对未知任务会抛 KeyError 而没有友好错误。",
+      "file": "worker/tasks.py",
+      "line": 25,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "统一任务分发方式（推荐 payload 只带任务名，由 get_handler 查表，并对未知任务抛出明确异常/返回失败），删除未使用的路径。",
+      "evidence": "worker/tasks.py:25-27  return TASKS[name]；worker/runner.py:30  handler = task[\"handler\"]；全仓库检索未见 get_handler 调用点",
+      "confidence": 0.7,
+      "source": "reviewer"
+    }
+  ]
+}

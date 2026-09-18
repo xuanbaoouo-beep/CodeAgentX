@@ -1,0 +1,235 @@
+{
+  "dataset": "sample_repo",
+  "protocol": "react",
+  "target": "E:/university/dasan_up/agent/CodeAgentX/data/sample_repo",
+  "valid": true,
+  "seconds": 20.94,
+  "usage": {
+    "calls": 4,
+    "failed_calls": 0,
+    "prompt_tokens": 14451,
+    "completion_tokens": 4761,
+    "total_tokens": 19212,
+    "latency": 19.166
+  },
+  "cost": {
+    "total_tokens": 19212,
+    "tokens_per_finding": 2134.7
+  },
+  "flags": {},
+  "judge": {},
+  "evaluation": {
+    "dataset": "sample_repo",
+    "target": "data/sample_repo",
+    "protocol": "react",
+    "tolerance": 3,
+    "counts": {
+      "reported": 9,
+      "true_positives": 7,
+      "false_positives": 2,
+      "false_negatives": 0,
+      "labeled_defects": 7
+    },
+    "metrics": {
+      "precision": 0.7778,
+      "recall": 1.0,
+      "f1": 0.875,
+      "false_positive_rate": 0.2222,
+      "location_precision": 1.0
+    },
+    "matched": {
+      "hardcoded-secret": "会话签名密钥硬编码在源码中",
+      "weak-password-hash": "使用无盐 SHA-256 存储密码摘要",
+      "sql-string-concat": "SQL 语句用字符串拼接构造，存在注入风险",
+      "missing-input-validation": "login 未校验入参，异常未捕获导致 500/崩溃",
+      "exception-leak": "调试登录接口未鉴权且回显内部异常",
+      "logout-noop": "logout 为空实现，token 无法失效",
+      "no-login-rate-limit": "登录接口缺少失败次数限制，可被暴力破解"
+    },
+    "missed": [],
+    "verdicts": [
+      {
+        "index": 0,
+        "title": "会话签名密钥硬编码在源码中",
+        "file": "app/auth/service.py",
+        "line": 11,
+        "defect_id": "hardcoded-secret",
+        "match": "line"
+      },
+      {
+        "index": 1,
+        "title": "token 校验未验证签名，可伪造任意用户身份",
+        "file": "app/auth/service.py",
+        "line": 44,
+        "defect_id": "",
+        "match": ""
+      },
+      {
+        "index": 2,
+        "title": "使用无盐 SHA-256 存储密码摘要",
+        "file": "app/auth/service.py",
+        "line": 19,
+        "defect_id": "weak-password-hash",
+        "match": "line"
+      },
+      {
+        "index": 3,
+        "title": "SQL 语句用字符串拼接构造，存在注入风险",
+        "file": "app/db/repository.py",
+        "line": 24,
+        "defect_id": "sql-string-concat",
+        "match": "line"
+      },
+      {
+        "index": 4,
+        "title": "login 未校验入参，异常未捕获导致 500/崩溃",
+        "file": "app/auth/service.py",
+        "line": 28,
+        "defect_id": "missing-input-validation",
+        "match": "line"
+      },
+      {
+        "index": 5,
+        "title": "调试登录接口未鉴权且回显内部异常",
+        "file": "app/api/routes.py",
+        "line": 27,
+        "defect_id": "exception-leak",
+        "match": "line"
+      },
+      {
+        "index": 6,
+        "title": "logout 为空实现，token 无法失效",
+        "file": "app/auth/service.py",
+        "line": 39,
+        "defect_id": "logout-noop",
+        "match": "line"
+      },
+      {
+        "index": 7,
+        "title": "登录接口缺少失败次数限制，可被暴力破解",
+        "file": "app/api/routes.py",
+        "line": 13,
+        "defect_id": "no-login-rate-limit",
+        "match": "line"
+      },
+      {
+        "index": 8,
+        "title": "User 模型明文暴露密码摘要字段",
+        "file": "app/auth/models.py",
+        "line": 14,
+        "defect_id": "",
+        "match": ""
+      }
+    ]
+  },
+  "findings": [
+    {
+      "title": "会话签名密钥硬编码在源码中",
+      "description": "SECRET_KEY 以明文常量形式写在源码里，并直接用于拼接登录 token。一旦仓库泄露或反编译，攻击者可自行签发/伪造任意用户的 token，属于典型的 CWE-798 硬编码凭据。",
+      "file": "app/auth/service.py",
+      "line": 11,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改为从环境变量或密钥管理服务读取，例如 os.environ[\"SESSION_SECRET\"]，并在缺失时启动失败；同时为不同环境使用不同密钥并支持轮换。",
+      "evidence": "SECRET_KEY = \"hardcoded-secret-key-for-demo\"",
+      "confidence": 0.97,
+      "source": "react"
+    },
+    {
+      "title": "token 校验未验证签名，可伪造任意用户身份",
+      "description": "current_user 只判断 token 是否包含 '.'，然后用 rsplit 取出用户名去查库，完全不校验后半段的 SECRET_KEY 签名。攻击者无需知道密钥，直接构造 \"<任意用户名>.x\" 即可通过鉴权，形成认证绕过（CWE-287）。",
+      "file": "app/auth/service.py",
+      "line": 44,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "签发与校验使用同一套签名方案（如 HMAC-SHA256 或成熟的 JWT 库），校验时重新计算签名并用 hmac.compare_digest 做常量时间比较，签名不匹配立即返回 None。",
+      "evidence": "if not session_token or \".\" not in session_token:\n    return None\nname = session_token.rsplit(\".\", 1)[0]\ntry:\n    return find_user(name)",
+      "confidence": 0.93,
+      "source": "react"
+    },
+    {
+      "title": "使用无盐 SHA-256 存储密码摘要",
+      "description": "hash_password 直接对明文做一次 SHA-256，无盐值、无密钥派生/迭代。相同密码产生相同摘要，易被彩虹表与批量爆破破解，且计算过快不适合口令存储（CWE-916/CWE-759）。",
+      "file": "app/auth/service.py",
+      "line": 19,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改用带盐慢哈希算法，如 bcrypt/argon2/scrypt（passlib 或 argon2-cffi），并按算法参数存库；校验用 verify 接口而非自比较。",
+      "evidence": "return hashlib.sha256(password.encode()).hexdigest()",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "SQL 语句用字符串拼接构造，存在注入风险",
+      "description": "build_user_query 直接把 username 拼进 SQL 文本，username 来自请求参数时可通过 ' OR '1'='1 等载荷篡改查询语义，导致越权读取/数据泄露（CWE-89）。",
+      "file": "app/db/repository.py",
+      "line": 24,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "改为参数化查询，如 return \"SELECT name, password_hash FROM users WHERE name = %s\", (username,)（或使用 ORM/命名参数），并叠加输入白名单校验。",
+      "evidence": "return f\"SELECT name, password_hash FROM users WHERE name = '{username}'\"",
+      "confidence": 0.96,
+      "source": "react"
+    },
+    {
+      "title": "login 未校验入参，异常未捕获导致 500/崩溃",
+      "description": "login 未校验 username/password 是否为空；username 为空或不存在时 find_user 抛 LookupError，password 为 None 时 hash_password(None) 抛 AttributeError，而路由层 handle_login 未做 try/except，异常直接冒泡为 500，可被用于探测系统内部状态乃至 DoS。",
+      "file": "app/auth/service.py",
+      "line": 28,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "在 login 入口先做类型与非空校验（if not username or not password: return None），并将 find_user 的 LookupError 在 login 内部吞掉返回 None；路由层再统一用异常处理返回 401。",
+      "evidence": "user = find_user(username)\nif user.password_hash == hash_password(password):",
+      "confidence": 0.88,
+      "source": "react"
+    },
+    {
+      "title": "调试登录接口未鉴权且回显内部异常",
+      "description": "handle_debug_login 无任何访问控制即可调用，且把 repr(exc) 原样返回给调用方，泄露异常类型与内部细节（如用户名存在性、文件/实现信息），可辅助攻击者进一步利用（CWE-209/CWE-489）。",
+      "file": "app/api/routes.py",
+      "line": 27,
+      "severity": "high",
+      "category": "security",
+      "suggestion": "删除或仅在受控调试环境并加鉴权后启用该入口；对外统一返回通用错误码与请求 id，详细异常只记录到服务端日志。",
+      "evidence": "except Exception as exc:\n        return {\"status\": 500, \"error\": repr(exc)}",
+      "confidence": 0.95,
+      "source": "react"
+    },
+    {
+      "title": "logout 为空实现，token 无法失效",
+      "description": "logout 直接 return True 没有任何吊销动作，登出后旧 token 仍然有效，攻击者截获的 token 在有效期内可持续使用，违背登出的安全语义。",
+      "file": "app/auth/service.py",
+      "line": 39,
+      "severity": "medium",
+      "category": "bug",
+      "suggestion": "引入服务端会话/吊销表（或 token 黑名单），logout 时删除/标记对应会话；若使用 JWT，应维护吊销列表并缩短有效期。",
+      "evidence": "def logout(session_token):\n    ...\n    return True",
+      "confidence": 0.9,
+      "source": "react"
+    },
+    {
+      "title": "登录接口缺少失败次数限制，可被暴力破解",
+      "description": "handle_login 每次失败仅返回 401，没有账号/IP 维度的失败计数、锁定或验证码机制，结合上述弱哈希可对账号进行无限次口令爆破（CWE-307）。",
+      "file": "app/api/routes.py",
+      "line": 13,
+      "severity": "medium",
+      "category": "security",
+      "suggestion": "按账号与来源 IP 做速率限制与指数退避，多次失败后临时锁定并要求二次验证；同时记录失败审计日志。",
+      "evidence": "token = login(username, password)\nif token is None:\n    return {\"status\": 401, \"message\": \"用户名或密码错误\"}",
+      "confidence": 0.82,
+      "source": "react"
+    },
+    {
+      "title": "User 模型明文暴露密码摘要字段",
+      "description": "password_hash 作为普通 dataclass 字段，会被 repr/序列化随对象一起输出（如日志、接口响应），缺少脱敏手段，增加凭据泄露面。",
+      "file": "app/auth/models.py",
+      "line": 14,
+      "severity": "low",
+      "category": "maintainability",
+      "suggestion": "将字段设为 field(repr=False, compare=False)，自定义脱敏 __repr__，并在序列化层显式排除敏感字段。",
+      "evidence": "name: str\n    password_hash: str\n    is_active: bool = True",
+      "confidence": 0.75,
+      "source": "react"
+    }
+  ]
+}

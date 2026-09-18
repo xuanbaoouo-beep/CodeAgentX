@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master", "dev"]
+  pull_request:
+    branches: ["main", "master", "dev"]
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Lint with ruff
+        run: python -m ruff check src tests examples
+        continue-on-error: true
+
+      - name: Run tests
+        env:
+          # CI 中不配置真实 Key，测试必须依赖 Mock，禁止真实网络调用
+          LLM_API_KEY: ""
+        # 不要在这里再加 -q：pyproject 的 addopts 已有 -q，叠加成 -qq 会安静到连"多少通过"都不打印
+        run: python -m pytest

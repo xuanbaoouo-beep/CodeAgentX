@@ -1,0 +1,81 @@
+{
+  "dataset": "file_service",
+  "target": "data/evaluation/file_service/target",
+  "language": "python",
+  "file_count": 7,
+  "file_count_note": "共 7 个文件 = 5 个业务源文件（api.py、paths.py、storage.py、upload.py、tempfiles.py）+ 1 个 __init__.py + README.md；缺陷分布在 5 个业务文件里",
+  "provenance": {
+    "source": "data/evaluation/file_service/target/README.md「请勿修好这里的缺陷」表——缺陷是被刻意植入并被文档记录的，属于构造性 ground truth",
+    "line_numbers": "由人工逐条核对源码后定位（2026-09-17）",
+    "policy": "严格只收录该表列出的 6 条。README 或代码 docstring 里顺带提到的其它内容不计入 ground truth——否则就成了把模型事后发现的问题补进标签，那是对评测结果的污染",
+    "line_semantics": "line/line_end 表示缺陷所在的代码区间：缺失型缺陷（该做而没做，如没有鉴权、没有大小限制）标整个函数体，单点缺陷标该语句所在行"
+  },
+  "defects": [
+    {
+      "id": "path-traversal-download",
+      "title": "下载路径未做规范化与前缀校验（路径穿越）",
+      "file": "fileservice/paths.py",
+      "line": 12,
+      "line_end": 19,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 1,
+      "keywords": ["路径穿越", "path traversal", "resolve", "realpath", "os.path.join", "STORAGE_ROOT"]
+    },
+    {
+      "id": "no-authz-on-download",
+      "title": "下载接口不校验文件归属者（越权访问）",
+      "file": "fileservice/api.py",
+      "line": 15,
+      "line_end": 22,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 2,
+      "keywords": ["越权", "鉴权", "归属", "authorization", "CURRENT_USER", "download"]
+    },
+    {
+      "id": "unbounded-upload-size",
+      "title": "上传不限制大小，一次性把整个流读进内存",
+      "file": "fileservice/upload.py",
+      "line": 9,
+      "line_end": 14,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 3,
+      "keywords": ["大小限制", "内存", "stream.read", "分块", "limit", "无上限"]
+    },
+    {
+      "id": "unvalidated-content-type",
+      "title": "只信客户端声明的 content-type，不校验真实内容",
+      "file": "fileservice/upload.py",
+      "line": 17,
+      "line_end": 23,
+      "severity": "medium",
+      "category": "security",
+      "readme_row": 4,
+      "keywords": ["content-type", "MIME", "嗅探", "magic", "白名单", "可执行脚本"]
+    },
+    {
+      "id": "shell-injection-filename",
+      "title": "shell=True 且把用户提供的文件名拼进命令（命令注入）",
+      "file": "fileservice/storage.py",
+      "line": 34,
+      "line_end": 35,
+      "severity": "high",
+      "category": "security",
+      "readme_row": 5,
+      "keywords": ["命令注入", "shell=True", "subprocess", "拼接", "filename"]
+    },
+    {
+      "id": "temp-file-leak",
+      "title": "临时文件用完不清理，mkstemp 的文件句柄也不关闭",
+      "file": "fileservice/tempfiles.py",
+      "line": 9,
+      "line_end": 18,
+      "severity": "low",
+      "category": "maintainability",
+      "readme_row": 6,
+      "keywords": ["临时文件", "mkstemp", "文件描述符", "close", "泄漏", "清理"]
+    }
+  ]
+}

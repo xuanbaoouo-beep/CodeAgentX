@@ -1,0 +1,18 @@
+{
+  "name": "README.md",
+  "path": "README.md",
+  "sha": "8e4b1c0d9f2a3b4c5d6e7f8091a2b3c4d5e6f708",
+  "size": 199,
+  "url": "https://api.github.com/repos/acme/payments-api/contents/README.md?ref=main",
+  "html_url": "https://github.com/acme/payments-api/blob/main/README.md",
+  "git_url": "https://api.github.com/repos/acme/payments-api/git/blobs/8e4b1c0d9f2a3b4c5d6e7f8091a2b3c4d5e6f708",
+  "download_url": "https://raw.githubusercontent.com/acme/payments-api/main/README.md",
+  "type": "file",
+  "encoding": "base64",
+  "content": "IyBwYXltZW50cy1hcGkKCkEgc21hbGwgcGF5bWVudHMgc2VydmljZSBrZXB0IGFzIHRoZSBDb2RlQWdlbnRYIEdpdEh1YiBmaXh0dXJlLgoKIyMgTGF5b3V0CgotIHNyYy9wYXltZW50cy9hcGkucHkgICBIVFRQIHJvdXRlcwotIHNyYy9wYXltZW50cy9hdXRoLnB5ICB0b2tlbiBhdXRoCi0gc3JjL3BheW1lbnRzL2RiLnB5ICAgIGRhdGEgYWNjZXNzCg==",
+  "_links": {
+    "self": "https://api.github.com/repos/acme/payments-api/contents/README.md?ref=main",
+    "git": "https://api.github.com/repos/acme/payments-api/git/blobs/8e4b1c0d9f2a3b4c5d6e7f8091a2b3c4d5e6f708",
+    "html": "https://github.com/acme/payments-api/blob/main/README.md"
+  }
+}
