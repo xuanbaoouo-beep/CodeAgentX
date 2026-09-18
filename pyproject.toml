@@ -24,10 +24,13 @@ dependencies = [
     "pydantic>=2.0.0",
     "httpx>=0.27.0",
     "rich>=13.0.0",
+    # numpy 是 rag/vector_store.py 的顶层导入，而 CLI 会一路 import 到它，
+    # 因此它属于**必需**依赖（放进 extras 会让 `pip install codeagentx` 得到装不上能跑的包）。
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
-rag = ["numpy>=1.26.0", "qdrant-client>=1.9.0"]
+rag = ["qdrant-client>=1.9.0"]
 tools = ["ruff>=0.5.0", "pylint>=3.2.0", "bandit>=1.7.0"]
 serve = ["fastapi>=0.111.0", "uvicorn>=0.30.0", "streamlit>=1.36.0"]
 dev = ["pytest>=8.0.0", "pyyaml>=6.0", "tqdm>=4.66.0"]
